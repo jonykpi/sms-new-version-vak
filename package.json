@@ -1,0 +1,21 @@
+{
+  "name": "text2fa",
+  "version": "1.0.0",
+  "description": "SMS activation service - text2fa.com (VAK-SMS reseller)",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "init-db": "node server/init-db.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.6",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "express-session": "^1.18.0",
+    "mysql2": "^3.11.0",
+    "node-fetch": "^3.3.2",
+    "nodemailer": "^8.0.1"
+  }
+}

@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Active numbers — {{WEBSITE_NAME}}</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body data-active-nav="active">
+  <div id="header-placeholder"></div>
+  <div class="main-wrap">
+    <div id="sidebar-placeholder"></div>
+    <main class="content active-page-content">
+      <div class="promo-banner active-banner">
+        <strong>{{WEBSITE_NAME}}</strong>
+        Our new website for SMS activations. It features completely different phone numbers and new countries.
+      </div>
+
+      <div class="active-tabs-top">
+        <button type="button" class="active-panel-tab active" data-tab="numbers">ACTIVE NUMBERS</button>
+        <button type="button" class="active-panel-tab" data-tab="history">ACTION HISTORY</button>
+      </div>
+
+      <div class="active-content">
+        <div class="active-section" id="sectionNumbers">
+          <h1 class="active-heading"><span class="active-heading-small">NUMBERS</span> Active numbers</h1>
+          <div class="active-list" id="activeList">
+            <div class="active-loading">Loading…</div>
+          </div>
+          <div class="active-pagination" id="activePagination"></div>
+        </div>
+        <div class="active-section" id="sectionHistory" style="display:none;">
+          <h1 class="active-heading"><span class="active-heading-small">NUMBERS</span> Action History</h1>
+          <div class="active-list" id="historyList">
+            <div class="active-loading">Loading…</div>
+          </div>
+          <div class="active-pagination" id="historyPagination"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="smsPopupOverlay" class="sms-popup-overlay" style="display:none;">
+    <div class="sms-popup">
+      <div class="sms-popup-header">
+        <h3>All SMS codes</h3>
+        <button type="button" class="btn btn-icon btn-popup-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="sms-popup-body" id="smsPopupBody"></div>
+    </div>
+  </div>
+
+  <script src="/js/layout.js"></script>
+  <script src="/js/toast.js"></script>
+  <script src="/js/crisp.js"></script>
+  <script src="/js/app.js"></script>
+  <script src="/js/sidebar.js"></script>
+  <script>
+    const RENT_MINUTES = 4 * 60;
+    const ONETIME_MINUTES = 20;
+
+    function flagUrl(code) {
+      const c = (code || '').toLowerCase();
+      if (c.length === 2) return 'https://flagcdn.com/w64/' + c + '.png';
+      if (c === 'usv') return 'https://flagcdn.com/w64/us.png';
+      if (c === 'cav') return 'https://flagcdn.com/w64/ca.png';
+      return '';
+    }
+
+    function getExpiryMs(createdAt, isRent) {
+      const created = new Date(createdAt).getTime();
+      const mins = isRent ? RENT_MINUTES : ONETIME_MINUTES;
+      return created + mins * 60 * 1000;
+    }
+
+    function formatCountdown(ms) {
+      if (ms <= 0) return '0:00';
+      const totalSec = Math.floor(ms / 1000);
+      const m = Math.floor(totalSec / 60);
+      const s = totalSec % 60;
+      return m + ':' + (s < 10 ? '0' : '') + s;
+    }
+
+    function parseSmsCodes(smsCode) {
+      if (!smsCode) return [];
+      try {
+        const p = JSON.parse(smsCode);
+        return Array.isArray(p) ? p : [p];
+      } catch {
+        return [String(smsCode)];
+      }
+    }
+
+    function renderActiveCard(a, now) {
+      const expiry = getExpiryMs(a.created_at, a.is_rent);
+      const remaining = expiry - now;
+      const statusText = a.status === 'got_sms' ? 'SMS received' : 'Waiting for SMS';
+      const svcName = a.service_name || a.service || '—';
+      const svcInit = (svcName.slice(0, 2) || '—').toUpperCase();
+      const flagUrl_ = flagUrl(a.country);
+      const phone = (a.phone || '').replace(/^(\d)/, '+$1');
+      const hasSms = a.status === 'got_sms' && a.sms_code;
+      const showCancelBanned = a.status !== 'cancelled' && remaining > 0 && !hasSms;
+      const showMoreSms = hasSms && remaining > 0;
+
+      let codeHtml = '';
+      if (a.sms_code) {
+        const codes = parseSmsCodes(a.sms_code);
+        const last = codes[codes.length - 1] || a.sms_code;
+        const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        if (codes.length > 1) {
+          codeHtml = '<span class="active-sms-code mono">' + esc(last) + '</span>' +
+            '<button type="button" class="btn btn-icon btn-sms-popup" data-codes="' + codes.map(esc).join('|||') + '" title="View all ' + codes.length + ' SMS">📋</button>';
+        } else {
+          codeHtml = '<span class="active-sms-code mono">' + esc(last) + '</span>';
+        }
+      } else if (!hasSms && a.status !== 'cancelled' && remaining > 0) {
+        codeHtml = '<button type="button" class="btn btn-get btn-sm btn-refresh" data-id="' + a.id + '">Refresh</button>';
+      }
+
+      return '<div class="active-card" data-id="' + a.id + '" data-expiry="' + expiry + '">' +
+        '<div class="active-card-left">' +
+          '<div class="active-service-logo" title="' + svcName + '">' + svcInit + '</div>' +
+          '<span class="active-service-name">' + svcName + '</span>' +
+        '</div>' +
+        '<div class="active-card-mid">' +
+          (flagUrl_ ? '<img src="' + flagUrl_ + '" alt="" class="active-flag" onerror="this.style.display=\'none\'">' : '') +
+          '<span class="active-phone">' + phone + '</span>' +
+          (remaining > 0 && a.status !== 'cancelled' ? '<span class="active-timer" data-id="' + a.id + '">' + formatCountdown(remaining) + '</span>' : '') +
+          '<span class="active-status">' + statusText + '</span>' +
+          (codeHtml ? '<span class="active-code-wrap">' + codeHtml + '</span>' : '') +
+        '</div>' +
+        '<div class="active-card-actions">' +
+          (showCancelBanned ? '<button type="button" class="btn btn-banned" data-id="' + a.id + '" data-action="bad">BANNED</button>' : '') +
+          (showCancelBanned ? '<button type="button" class="btn btn-cancel" data-id="' + a.id + '" data-action="end">CANCEL</button>' : '') +
+          (showMoreSms ? '<button type="button" class="btn btn-get btn-more-sms" data-id="' + a.id + '">More SMS</button>' : '') +
+        '</div>' +
+        '</div>';
+    }
+
+    function renderHistoryCard(a) {
+      const svcName = a.service_name || a.service || '—';
+      const svcInit = (svcName.slice(0, 2) || '—').toUpperCase();
+      const flagUrl_ = flagUrl(a.country);
+      const phone = (a.phone || '').replace(/^(\d)/, '+$1');
+      const time = a.created_at ? new Date(a.created_at).toLocaleString('en-US', { timeZone: 'UTC', dateStyle: 'long', timeStyle: 'short' }) + ' UTC' : '—';
+      const priceUsd = a.price_usd != null ? Number(a.price_usd).toFixed(2) : '';
+      const price = priceUsd ? 'Buy for $' + priceUsd : '';
+      const expiry = getExpiryMs(a.created_at, a.is_rent);
+      const canExtend = a.status === 'got_sms' && expiry <= Date.now() && priceUsd;
+
+      return '<div class="active-card history-card" data-id="' + a.id + '">' +
+        '<div class="active-card-left">' +
+          '<div class="active-service-logo" title="' + svcName + '">' + svcInit + '</div>' +
+          '<span class="active-service-name">' + svcName + '</span>' +
+        '</div>' +
+        '<div class="active-card-mid history-mid">' +
+          (flagUrl_ ? '<img src="' + flagUrl_ + '" alt="" class="active-flag" onerror="this.style.display=\'none\'">' : '') +
+          '<div class="active-history-phone-wrap">' +
+            '<span class="active-phone-box">' + phone + '</span>' +
+            (canExtend ? '<button type="button" class="btn btn-get btn-extend" data-id="' + a.id + '">Extend for $' + priceUsd + '</button>' : (price ? '<span class="active-price">' + price + '</span>' : '')) +
+          '</div>' +
+          '<span class="active-history-time">' + time + '</span>' +
+        '</div>' +
+        '</div>';
+    }
+
+    const expiredIdsTriggered = new Set();
+    function tickTimers() {
+      const now = Date.now();
+      document.querySelectorAll('.active-timer').forEach(el => {
+        const id = el.dataset.id;
+        const card = el.closest('.active-card');
+        const expiry = parseInt(card?.dataset.expiry || 0, 10);
+        const remaining = expiry - now;
+        if (remaining <= 0) {
+          el.textContent = '0:00';
+          const bannedBtn = card?.querySelector('.btn-banned');
+          const cancelBtn = card?.querySelector('.btn-cancel');
+          if (bannedBtn) bannedBtn.remove();
+          if (cancelBtn) cancelBtn.remove();
+          if (id && !expiredIdsTriggered.has(id)) {
+            expiredIdsTriggered.add(id);
+            load();
+          }
+        } else {
+          el.textContent = formatCountdown(remaining);
+        }
+      });
+    }
+
+    async function load() {
+      const r = await fetch('/api/activations');
+      if (r.status === 401) {
+        document.getElementById('activeList').innerHTML = '<div class="active-empty">Please <a href="/login">log in</a> to see your active numbers.</div>';
+        document.getElementById('historyList').innerHTML = '<div class="active-empty">Please <a href="/login">log in</a> to see your history.</div>';
+        return;
+      }
+      const d = await r.json();
+      const all = d.activations || [];
+      const now = Date.now();
+      const active = all.filter(a => a.status !== 'cancelled');
+      const history = all;
+
+      const activeList = document.getElementById('activeList');
+      const historyList = document.getElementById('historyList');
+
+      if (active.length === 0) {
+        activeList.innerHTML = '<div class="active-empty">No active numbers. <a href="/">Get a number</a> from the site list.</div>';
+      } else {
+        activeList.innerHTML = active.map(a => renderActiveCard(a, now)).join('');
+        bindActiveButtons(activeList);
+      }
+
+      if (history.length === 0) {
+        historyList.innerHTML = '<div class="active-empty">No history yet.</div>';
+      } else {
+        historyList.innerHTML = history.map(renderHistoryCard).join('');
+        historyList.querySelectorAll('.btn-extend').forEach(btn => {
+          btn.addEventListener('click', () => prolongActivation(btn.dataset.id));
+        });
+      }
+
+      setInterval(tickTimers, 1000);
+      const waiting = active.filter(a => !a.sms_code && a.status !== 'cancelled');
+      if (waiting.length) setTimeout(pollSms, 2000);
+      if (window.updateBalance) window.updateBalance();
+    }
+
+    function pollSms() {
+      document.querySelectorAll('.active-card .btn-refresh').forEach(btn => {
+        fetch('/api/activation/' + btn.dataset.id + '/status')
+          .then(r => r.json())
+          .then(d => { if (d.status === 'got_sms' && d.sms_code) refreshStatus(btn.dataset.id, d); });
+      });
+      const hasWaiting = document.querySelectorAll('.active-card .btn-refresh').length;
+      if (hasWaiting) setTimeout(pollSms, 2000);
+    }
+
+    function bindActiveButtons(container) {
+      if (!container) return;
+      container.querySelectorAll('.btn-refresh').forEach(btn => {
+        btn.addEventListener('click', () => refreshStatus(btn.dataset.id));
+      });
+      container.querySelectorAll('.btn-more-sms').forEach(btn => {
+        btn.addEventListener('click', () => setStatus(btn.dataset.id, 'send'));
+      });
+      container.querySelectorAll('.btn-banned').forEach(btn => {
+        btn.addEventListener('click', () => setStatus(btn.dataset.id, 'bad'));
+      });
+      container.querySelectorAll('.btn-cancel').forEach(btn => {
+        btn.addEventListener('click', () => setStatus(btn.dataset.id, 'end'));
+      });
+      container.querySelectorAll('.btn-sms-popup').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const codes = (btn.dataset.codes || '').split('|||').filter(Boolean);
+          document.getElementById('smsPopupBody').innerHTML = codes.map((c, i) =>
+            '<div class="sms-popup-item"><span class="sms-popup-num">#' + (i + 1) + '</span><code class="sms-popup-code">' + c.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</code></div>'
+          ).join('');
+          document.getElementById('smsPopupOverlay').style.display = 'flex';
+        });
+      });
+    }
+
+    document.getElementById('smsPopupOverlay').addEventListener('click', function(e) {
+      if (e.target === this || e.target.classList.contains('btn-popup-close')) {
+        this.style.display = 'none';
+      }
+    });
+
+    async function prolongActivation(id) {
+      const btn = document.querySelector('.btn-extend[data-id="' + id + '"]');
+      if (btn) btn.disabled = true;
+      try {
+        const r = await fetch('/api/activation/' + id + '/prolong', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+        const d = await r.json();
+        if (!r.ok) { toast(d.error || 'Error', 'error'); return; }
+        toast('Number extended. It will appear in Active numbers.', 'success');
+        load();
+        if (window.updateBalance) window.updateBalance();
+      } catch (e) {
+        toast('Request failed.', 'error');
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    async function refreshStatus(id, dataFromPoll) {
+      const d = dataFromPoll || await (await fetch('/api/activation/' + id + '/status')).json();
+      const card = document.querySelector('.active-card[data-id="' + id + '"]');
+      if (!card) return;
+      if (d.status === 'got_sms' && d.sms_code) {
+        const statusEl = card.querySelector('.active-status');
+        const codeWrap = card.querySelector('.active-code-wrap');
+        if (statusEl) statusEl.textContent = 'SMS received';
+        const codes = d.sms_codes || [d.sms_code];
+        const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        let codeHtml = '<span class="active-sms-code mono">' + esc(d.sms_code) + '</span>';
+        if (codes.length > 1) {
+          codeHtml += '<button type="button" class="btn btn-icon btn-sms-popup" data-codes="' + codes.map(esc).join('|||') + '" title="View all ' + codes.length + ' SMS">📋</button>';
+        }
+        if (codeWrap) codeWrap.innerHTML = codeHtml;
+        card.querySelectorAll('.btn-banned, .btn-cancel').forEach(b => b.remove());
+        const expiry = parseInt(card.dataset.expiry || 0, 10);
+        const remaining = expiry - Date.now();
+        if (remaining > 0) {
+          const actions = card.querySelector('.active-card-actions');
+          const moreBtn = card.querySelector('.btn-more-sms');
+          if (actions && !moreBtn) {
+            actions.insertAdjacentHTML('afterbegin', '<button type="button" class="btn btn-get btn-more-sms" data-id="' + id + '">More SMS</button>');
+          }
+        }
+        const refreshBtn = card.querySelector('.btn-refresh');
+        if (refreshBtn) refreshBtn.remove();
+        bindActiveButtons(card);
+      }
+    }
+
+    async function setStatus(id, action) {
+      const btn = document.querySelector('.btn-banned[data-id="' + id + '"], .btn-cancel[data-id="' + id + '"], .btn-more-sms[data-id="' + id + '"]');
+      if (btn) btn.disabled = true;
+      try {
+        const r = await fetch('/api/activation/' + id + '/status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: action === 'bad' ? 'bad' : action === 'end' ? 'end' : 'send' })
+        });
+        const d = await r.json();
+        if (!r.ok) { toast(d.error || 'Error', 'error'); return; }
+        if (action === 'send') toast('Request for another SMS sent.', 'success');
+        if (action === 'end') toast('Number cancelled.', 'success');
+        if (action === 'bad') toast('Number marked as banned.', 'success');
+        load();
+      } catch (e) {
+        toast('Request failed.', 'error');
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    document.querySelectorAll('.active-panel-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.active-panel-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const which = tab.dataset.tab;
+        document.getElementById('sectionNumbers').style.display = which === 'numbers' ? '' : 'none';
+        document.getElementById('sectionHistory').style.display = which === 'history' ? '' : 'none';
+      });
+    });
+
+    load();
+  </script>
+</body>
+</html>

@@ -1,0 +1,56 @@
+<aside class="sidebar">
+  <div class="sidebar-filters">
+    <div class="filter-dropdown" id="countryDropdown">
+      <div class="filter-display filter-country" id="countryDisplay" title="Select country">
+        <span class="filter-flag" id="countryFlag">🇺🇸</span>
+        <span class="filter-text" id="countryText">United States virtual</span>
+        <span class="filter-chevron">▼</span>
+      </div>
+      <div class="filter-dropdown-panel" id="countryDropdownPanel">
+        <div class="filter-grid filter-grid-countries" id="countryGrid">
+          <div class="filter-grid-loading">Loading countries…</div>
+        </div>
+      </div>
+    </div>
+    <div class="filter-dropdown" id="operatorDropdown">
+      <div class="filter-display filter-operator" id="operatorDisplay" title="Select operator">
+        <span class="filter-text" id="operatorText">Any operator</span>
+        <span class="filter-chevron">▼</span>
+      </div>
+      <div class="filter-dropdown-panel" id="operatorDropdownPanel">
+        <div class="filter-grid filter-grid-operators" id="operatorGrid">
+          <div class="filter-grid-loading">Select a country</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <input type="hidden" id="country" value="usv">
+  <input type="hidden" id="operator" value="">
+  <div class="rent-section" style="display:none"><!-- hidden temporarily, unhide when ready -->
+    <span class="rent-label">Long-term room rentals</span>
+    <div class="rent-row">
+      <input type="text" id="rentService" placeholder="Service code (e.g. wa)">
+      <button type="button" class="btn btn-get" id="getRentBtn">Get</button>
+    </div>
+  </div>
+  <div class="sidebar-section">
+    <div class="two-services-heading">Getting one number for two services</div>
+    <div class="two-services">
+      <select id="twoService1">
+        <option value="">Service 1</option>
+      </select>
+      <select id="twoService2">
+        <option value="">Service 2</option>
+      </select>
+      <button type="button" class="btn btn-get" id="getTwoBtn">Get</button>
+    </div>
+  </div>
+  <div class="sidebar-section" style="padding-top:1rem;">
+    <div class="sidebar-search">
+      <input type="text" id="serviceSearch" placeholder="Search services...">
+    </div>
+    <ul class="service-list" id="serviceList">
+      <li class="service-item">Loading…</li>
+    </ul>
+  </div>
+</aside>

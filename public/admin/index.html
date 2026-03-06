@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin — {{WEBSITE_NAME}}</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="admin-page">
+  <header class="site-header">
+    <a href="/" class="logo">{{WEBSITE_NAME}} — Admin</a>
+    <nav class="nav-links"><a href="/">Site</a> <a href="/admin">Admin</a></nav>
+  </header>
+  <main class="content">
+    <div id="notAdmin" class="alert alert-danger" style="display:none;">Access denied. Admin only.</div>
+    <div id="adminContent" style="display:none;">
+      <div class="admin-layout">
+        <nav class="admin-nav">
+          <ul>
+            <li><a href="#dashboard" data-page="dashboard">Dashboard</a></li>
+            <li><a href="#deposits" data-page="deposits">Deposits</a></li>
+            <li><a href="#orders" data-page="orders">All orders</a></li>
+            <li><a href="#users" data-page="users">Users & balance</a></li>
+          </ul>
+        </nav>
+        <div class="admin-main">
+          <div id="page-dashboard" class="admin-page">
+            <h1>Dashboard</h1>
+            <div class="admin-cards" id="dashboardCards">
+              <div class="admin-card"><h3>Users</h3><span class="value" id="statUsers">—</span></div>
+              <div class="admin-card"><h3>Total deposits ($)</h3><span class="value" id="statDeposits">—</span></div>
+              <div class="admin-card"><h3>Deposits today</h3><span class="value" id="statDepositsToday">—</span></div>
+              <div class="admin-card"><h3>Total orders</h3><span class="value" id="statOrders">—</span></div>
+              <div class="admin-card"><h3>Orders revenue ($)</h3><span class="value" id="statOrdersRevenue">—</span></div>
+              <div class="admin-card"><h3>Orders today</h3><span class="value" id="statOrdersToday">—</span></div>
+              <div class="admin-card"><h3>Provider balance (RUB)</h3><span class="value" id="statVakBalance">—</span></div>
+            </div>
+            <div class="admin-section">
+              <h2>Pricing</h2>
+              <p>Set exchange rate (1 RUB = X USD) and your commission. Cache TTL: country/operator price data cached for N minutes.</p>
+              <div class="settings-grid">
+                <div><label>1 RUB = (USD)</label><input type="number" id="rub_to_usd" step="0.001" min="0" placeholder="0.011"></div>
+                <div><label>Commission (%)</label><input type="number" id="commission_percent" step="0.5" min="0" placeholder="5"></div>
+                <div><label>Cache TTL (min)</label><input type="number" id="cache_ttl_minutes" min="1" max="60" placeholder="5"></div>
+              </div>
+              <button type="button" class="btn btn-primary" id="saveSettings">Save settings</button>
+            </div>
+            <div class="admin-section">
+              <h2>Notification banner</h2>
+              <p>Show a banner to all users at the top of the page. Leave empty or disabled to hide.</p>
+              <div class="settings-grid" style="grid-template-columns: 1fr;">
+                <div><label><input type="checkbox" id="notification_enabled"> Enable banner</label></div>
+                <div><label>Message</label><input type="text" id="notification_text" placeholder="e.g. Scheduled maintenance on Sunday 2–4 AM" maxlength="500" style="width:100%;"></div>
+              </div>
+              <button type="button" class="btn btn-primary" id="saveNotification">Save notification</button>
+            </div>
+          </div>
+          <div id="page-deposits" class="admin-page">
+            <h1>Deposits</h1>
+            <div class="admin-toolbar">
+              <input type="search" id="depositsSearch" placeholder="Search by email or order ID...">
+              <button type="button" class="btn btn-outline" id="depositsSearchBtn">Search</button>
+              <button type="button" class="btn btn-outline" id="refreshDeposits">Refresh</button>
+            </div>
+            <div class="table-wrap">
+              <table class="users-table">
+                <thead><tr><th>ID</th><th>User</th><th>Order ID</th><th>Amount</th><th>Currency</th><th>Status</th><th>Created</th><th>Paid</th></tr></thead>
+                <tbody id="depositsBody"><tr><td colspan="8">Loading…</td></tr></tbody>
+              </table>
+            </div>
+            <div class="admin-pagination" id="depositsPagination"></div>
+          </div>
+          <div id="page-orders" class="admin-page">
+            <h1>All orders</h1>
+            <div class="admin-toolbar">
+              <input type="search" id="ordersSearch" placeholder="Search by email, service or phone...">
+              <button type="button" class="btn btn-outline" id="ordersSearchBtn">Search</button>
+              <button type="button" class="btn btn-outline" id="refreshOrders">Refresh</button>
+            </div>
+            <div class="table-wrap">
+              <table class="users-table">
+                <thead><tr><th>ID</th><th>User</th><th>Service</th><th>Country</th><th>Phone</th><th>Price</th><th>Status</th><th>Created</th></tr></thead>
+                <tbody id="ordersBody"><tr><td colspan="8">Loading…</td></tr></tbody>
+              </table>
+            </div>
+            <div class="admin-pagination" id="ordersPagination"></div>
+          </div>
+          <div id="page-users" class="admin-page">
+            <h1>Users & balance</h1>
+            <p>Add or subtract balance for users. Reason is logged. Impersonate to view the site as a user.</p>
+            <div class="admin-toolbar">
+              <input type="search" id="usersSearch" placeholder="Search by email or ID...">
+              <button type="button" class="btn btn-outline" id="usersSearchBtn">Search</button>
+              <button type="button" class="btn btn-outline" id="refreshUsers">Refresh</button>
+            </div>
+            <div class="table-wrap">
+              <table class="users-table">
+                <thead><tr><th>ID</th><th>Email</th><th>Balance ($)</th><th>Admin</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody id="usersBody"><tr><td colspan="6">Loading…</td></tr></tbody>
+              </table>
+            </div>
+            <div class="admin-pagination" id="usersPagination"></div>
+            <div class="admin-section" style="margin-top:1.5rem;">
+              <h2>Add balance</h2>
+              <div class="admin-toolbar">
+                <label>User ID <input type="number" id="addUserId" min="1" placeholder="User ID"></label>
+                <label>Amount ($) <input type="number" id="addAmount" step="0.01" placeholder="10"></label>
+                <label>Reason <input type="text" id="addReason" placeholder="Top-up"></label>
+                <button type="button" class="btn btn-primary" id="addBalance">Add balance</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <script src="/js/toast.js"></script>
+  <script src="/js/app.js"></script>
+  <script>
+    const notAdmin = document.getElementById('notAdmin');
+    const adminContent = document.getElementById('adminContent');
+    const pages = document.querySelectorAll('.admin-main .admin-page');
+    const navLinks = document.querySelectorAll('.admin-nav a');
+
+    let depositsPage = 1, ordersPage = 1, usersPage = 1;
+    let depositsSearch = '', ordersSearch = '', usersSearch = '';
+    const PAGE_SIZE = 25;
+
+    function getPage() {
+      const hash = (location.hash || '').slice(1);
+      const valid = ['dashboard', 'deposits', 'orders', 'users'];
+      return valid.includes(hash) ? hash : 'dashboard';
+    }
+
+    function showPage(page) {
+      if (!location.hash || !['dashboard','deposits','orders','users'].includes(location.hash.slice(1))) {
+        location.replace('#dashboard');
+      }
+      const id = page === 'dashboard' ? 'dashboard' : page;
+      pages.forEach(p => {
+        p.classList.toggle('active', p.id === 'page-' + id);
+      });
+      navLinks.forEach(a => {
+        a.classList.toggle('active', a.dataset.page === id);
+      });
+      if (page === 'deposits') loadDeposits();
+      if (page === 'orders') loadOrders();
+      if (page === 'users') loadUsers();
+    }
+
+    navLinks.forEach(a => {
+      a.addEventListener('click', e => {
+        e.preventDefault();
+        location.hash = a.dataset.page;
+        showPage(a.dataset.page);
+      });
+    });
+    window.addEventListener('hashchange', () => showPage(getPage()));
+
+    function renderPagination(containerId, page, totalPages, onPage) {
+      const el = document.getElementById(containerId);
+      if (!el) return;
+      if (totalPages <= 1) { el.innerHTML = ''; return; }
+      let html = '<button type="button" data-page="prev"' + (page <= 1 ? ' disabled' : '') + '>← Prev</button>';
+      html += '<span>Page ' + page + ' of ' + totalPages + '</span>';
+      html += '<button type="button" data-page="next"' + (page >= totalPages ? ' disabled' : '') + '>Next →</button>';
+      el.innerHTML = html;
+      el.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (btn.disabled) return;
+          const p = btn.dataset.page === 'prev' ? page - 1 : page + 1;
+          if (p >= 1 && p <= totalPages) onPage(p);
+        });
+      });
+    }
+
+    async function checkAdmin() {
+      const r = await fetch('/api/auth/me');
+      const d = r.ok ? await r.json() : {};
+      if (!d.user || !d.user.isAdmin) {
+        notAdmin.style.display = 'block';
+        return;
+      }
+      adminContent.style.display = 'block';
+      showPage(getPage());
+      loadDashboard();
+      loadSettings();
+    }
+
+    async function loadDashboard() {
+      try {
+        const [statsRes, vakRes] = await Promise.all([
+          fetch('/api/admin/stats'),
+          fetch('/api/admin/vak-balance')
+        ]);
+        const stats = statsRes.ok ? await statsRes.json() : {};
+        const vak = vakRes.ok ? await vakRes.json() : {};
+        document.getElementById('statUsers').textContent = stats.users ?? '—';
+        document.getElementById('statDeposits').textContent = (stats.depositsTotalUsd ?? 0).toFixed(2);
+        document.getElementById('statDepositsToday').textContent = (stats.depositsToday ?? 0) + ' ($' + (stats.depositsTodayUsd ?? 0).toFixed(2) + ')';
+        document.getElementById('statOrders').textContent = stats.orders ?? '—';
+        document.getElementById('statOrdersRevenue').textContent = (stats.ordersRevenueUsd ?? 0).toFixed(2);
+        document.getElementById('statOrdersToday').textContent = stats.ordersToday ?? '—';
+        document.getElementById('statVakBalance').textContent = vak.balance ?? '—';
+      } catch (_) {}
+    }
+
+    async function loadSettings() {
+      const r = await fetch('/api/admin/settings');
+      if (!r.ok) return;
+      const s = await r.json();
+      document.getElementById('rub_to_usd').value = s.rub_to_usd ?? '';
+      document.getElementById('commission_percent').value = s.commission_percent ?? '';
+      document.getElementById('cache_ttl_minutes').value = s.cache_ttl_minutes ?? '5';
+      document.getElementById('notification_enabled').checked = s.notification_enabled === '1';
+      document.getElementById('notification_text').value = s.notification_text ?? '';
+    }
+
+    document.getElementById('saveSettings').addEventListener('click', async () => {
+      const r = await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rub_to_usd: document.getElementById('rub_to_usd').value,
+          commission_percent: document.getElementById('commission_percent').value,
+          cache_ttl_minutes: document.getElementById('cache_ttl_minutes').value
+        })
+      });
+      const s = await r.json();
+      toast(r.ok ? 'Settings saved.' : (s.error || 'Error'), r.ok ? 'success' : 'error');
+      if (r.ok) { loadSettings(); loadDashboard(); }
+    });
+
+    document.getElementById('saveNotification').addEventListener('click', async () => {
+      const r = await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notification_enabled: document.getElementById('notification_enabled').checked ? '1' : '0',
+          notification_text: document.getElementById('notification_text').value
+        })
+      });
+      const s = await r.json();
+      toast(r.ok ? 'Notification saved.' : (s.error || 'Error'), r.ok ? 'success' : 'error');
+      if (r.ok) loadSettings();
+    });
+
+    async function loadUsers() {
+      const r = await fetch('/api/admin/users?page=' + usersPage + '&limit=' + PAGE_SIZE + (usersSearch ? '&search=' + encodeURIComponent(usersSearch) : ''));
+      if (!r.ok) return;
+      const d = await r.json();
+      const list = d.users || [];
+      const totalPages = d.totalPages || 1;
+      document.getElementById('usersBody').innerHTML = list.map(u => {
+        const suspended = !!u.suspended;
+        const status = suspended ? '<span style="color:var(--danger)">Suspended</span>' : 'Active';
+        const suspendBtn = u.is_admin ? '' : '<button type="button" class="btn btn-outline btn-sm" data-suspend="' + u.id + '">' + (suspended ? 'Unsuspend' : 'Suspend') + '</button>';
+        const impersonateBtn = u.is_admin ? '' : '<button type="button" class="btn btn-impersonate btn-get" data-impersonate="' + u.id + '">Impersonate</button>';
+        return '<tr><td>' + u.id + '</td><td>' + u.email + '</td><td>$' + Number(u.balance).toFixed(2) + '</td><td>' + (u.is_admin ? 'Yes' : '') + '</td><td>' + status + '</td><td>' + suspendBtn + ' ' + impersonateBtn + '</td></tr>';
+      }).join('') || '<tr><td colspan="6">No users</td></tr>';
+      document.getElementById('usersBody').querySelectorAll('[data-suspend]').forEach(btn => {
+        btn.addEventListener('click', () => suspendUser(btn.dataset.suspend));
+      });
+      document.getElementById('usersBody').querySelectorAll('[data-impersonate]').forEach(btn => {
+        btn.addEventListener('click', () => impersonateUser(btn.dataset.impersonate));
+      });
+      renderPagination('usersPagination', usersPage, totalPages, (p) => { usersPage = p; loadUsers(); });
+    }
+
+    async function impersonateUser(userId) {
+      const r = await fetch('/api/admin/impersonate/' + userId, { method: 'POST' });
+      const d = await r.json();
+      if (r.ok) {
+        toast('Viewing as user. Redirecting...', 'success');
+        window.location.href = '/';
+      } else {
+        toast(d.error || 'Error', 'error');
+      }
+    }
+
+    async function loadOrders() {
+      const r = await fetch('/api/admin/activations?page=' + ordersPage + '&limit=' + PAGE_SIZE + (ordersSearch ? '&search=' + encodeURIComponent(ordersSearch) : ''));
+      if (!r.ok) return;
+      const d = await r.json();
+      const list = d.activations || [];
+      const totalPages = d.totalPages || 1;
+      document.getElementById('ordersBody').innerHTML = list.map(a => {
+        const phone = (a.phone || '').replace(/^(\d)/, '+$1');
+        const created = a.created_at ? new Date(a.created_at).toLocaleString() : '—';
+        return '<tr><td>' + a.id + '</td><td>' + (a.email || '#' + a.user_id) + '</td><td>' + (a.service_name || a.service || '—') + '</td><td>' + (a.country || '—') + '</td><td>' + phone + '</td><td>$' + Number(a.price_usd || 0).toFixed(2) + '</td><td>' + (a.status || '—') + '</td><td>' + created + '</td></tr>';
+      }).join('') || '<tr><td colspan="8">No orders</td></tr>';
+      renderPagination('ordersPagination', ordersPage, totalPages, (p) => { ordersPage = p; loadOrders(); });
+    }
+
+    async function loadDeposits() {
+      const r = await fetch('/api/admin/deposits?page=' + depositsPage + '&limit=' + PAGE_SIZE + (depositsSearch ? '&search=' + encodeURIComponent(depositsSearch) : ''));
+      if (!r.ok) return;
+      const d = await r.json();
+      const list = d.deposits || [];
+      const totalPages = d.totalPages || 1;
+      document.getElementById('depositsBody').innerHTML = list.map(dep => {
+        const created = dep.created_at ? new Date(dep.created_at).toLocaleString() : '—';
+        const paid = dep.paid_at ? new Date(dep.paid_at).toLocaleString() : '—';
+        return '<tr><td>' + dep.id + '</td><td>' + (dep.email || '#' + dep.user_id) + '</td><td>' + (dep.order_id || '—') + '</td><td>$' + Number(dep.amount_usd || 0).toFixed(2) + '</td><td>' + (dep.to_currency || '—') + '</td><td>' + (dep.status || '—') + '</td><td>' + created + '</td><td>' + paid + '</td></tr>';
+      }).join('') || '<tr><td colspan="8">No deposits</td></tr>';
+      renderPagination('depositsPagination', depositsPage, totalPages, (p) => { depositsPage = p; loadDeposits(); });
+    }
+
+    document.getElementById('depositsSearchBtn').addEventListener('click', () => {
+      depositsSearch = document.getElementById('depositsSearch').value.trim();
+      depositsPage = 1;
+      loadDeposits();
+    });
+    document.getElementById('depositsSearch').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('depositsSearchBtn').click(); });
+    document.getElementById('ordersSearchBtn').addEventListener('click', () => {
+      ordersSearch = document.getElementById('ordersSearch').value.trim();
+      ordersPage = 1;
+      loadOrders();
+    });
+    document.getElementById('ordersSearch').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('ordersSearchBtn').click(); });
+    document.getElementById('usersSearchBtn').addEventListener('click', () => {
+      usersSearch = document.getElementById('usersSearch').value.trim();
+      usersPage = 1;
+      loadUsers();
+    });
+    document.getElementById('usersSearch').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('usersSearchBtn').click(); });
+
+    document.getElementById('refreshOrders').addEventListener('click', () => { ordersPage = 1; loadOrders(); });
+    document.getElementById('refreshDeposits').addEventListener('click', () => { depositsPage = 1; loadDeposits(); });
+    document.getElementById('refreshUsers').addEventListener('click', () => { usersPage = 1; loadUsers(); });
+
+    async function suspendUser(userId) {
+      const r = await fetch('/api/admin/users/' + userId + '/suspend', { method: 'POST' });
+      const d = await r.json();
+      toast(r.ok ? 'User status updated.' : (d.error || 'Error'), r.ok ? 'success' : 'error');
+      if (r.ok) loadUsers();
+    }
+
+    document.getElementById('addBalance').addEventListener('click', async () => {
+      const uid = document.getElementById('addUserId').value.trim();
+      const amount = document.getElementById('addAmount').value.trim();
+      if (!uid || !amount) { toast('User ID and amount required', 'error'); return; }
+      const r = await fetch('/api/admin/users/' + uid + '/balance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: parseFloat(amount), reason: document.getElementById('addReason').value || 'admin_adjustment' })
+      });
+      const d = await r.json();
+      toast(r.ok ? ('Balance updated. New balance: $' + d.user.balance) : (d.error || 'Error'), r.ok ? 'success' : 'error');
+      if (r.ok) { loadUsers(); loadDashboard(); document.getElementById('addAmount').value = ''; }
+    });
+
+    checkAdmin();
+  </script>
+</body>
+</html>

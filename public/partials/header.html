@@ -1,0 +1,22 @@
+<div class="site-header-wrap">
+  <div id="notification-banner" class="notification-banner" style="display:none" role="alert"></div>
+  <header class="site-header">
+  <a href="/" class="header-home-icon" title="Home" aria-label="Home">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+  </a>
+  <a href="/" class="logo">{{WEBSITE_NAME}}</a>
+  <nav class="nav-links">
+    <span id="headerNavLinks" style="display:none;"><a href="/active" data-nav="active">Active numbers</a></span>
+    <span id="headerGuest">
+      <a href="/login" class="btn btn-outline">Login</a>
+      <a href="/register" class="btn btn-primary">Register</a>
+    </span>
+    <span id="headerUser" style="display:none;">
+      <span id="userEmail" class="user-bar"></span>
+      <span class="user-balance">Balance: $<span id="balanceAmount">0</span></span>
+      <a href="/topup" class="btn btn-topup">Top up</a>
+      <a href="#" id="logoutBtn" class="btn btn-outline">Logout</a>
+    </span>
+  </nav>
+</header>
+</div>

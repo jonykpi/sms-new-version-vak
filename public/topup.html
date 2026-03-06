@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Top up balance — {{WEBSITE_NAME}}</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="header-placeholder"></div>
+  <div class="main-wrap">
+    <div id="sidebar-placeholder"></div>
+    <main class="content">
+      <div id="needLogin" class="deposit-guest-box" style="display:none;">
+        <p>Please <a href="/login">log in</a> to top up your balance.</p>
+      </div>
+      <div id="needVerify" class="deposit-guest-box" style="display:none;">
+        <p class="alert alert-warning">Verify your email to deposit. Check your inbox for the verification link.</p>
+        <a href="/" class="btn btn-outline">Back to site</a>
+      </div>
+      <div id="depositContent" style="display:none;">
+        <div class="deposit-card">
+          <h2 class="deposit-card-title">Deposit</h2>
+          <p class="deposit-card-subtitle">Top up your balance via cryptocurrency</p>
+          <div id="stepForm">
+            <div class="deposit-form-row">
+              <div class="deposit-form-field">
+                <label for="amount">Amount (USD)</label>
+                <input type="number" id="amount" min="1" max="10000" step="0.01" placeholder="10" required>
+              </div>
+              <div class="deposit-form-field">
+                <label>Cryptocurrency & network</label>
+                <div class="filter-dropdown deposit-crypto-dropdown" id="cryptoDropdown">
+                  <div class="filter-display deposit-crypto-display" id="cryptoDisplay" title="Select cryptocurrency">
+                    <span class="filter-text" id="cryptoDisplayText">Select…</span>
+                    <span class="filter-chevron">▼</span>
+                  </div>
+                  <div class="filter-dropdown-panel deposit-crypto-panel" id="cryptoDropdownPanel">
+                    <div class="filter-grid" id="cryptoGrid"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="deposit-form-field deposit-form-finalize">
+                <label>&nbsp;</label>
+                <button type="button" class="btn btn-primary" id="finalizeBtn">Finalize</button>
+              </div>
+            </div>
+            <div class="deposit-estimate" id="depositEstimate">
+              <span class="deposit-estimate-label">You will pay:</span>
+              <span class="deposit-estimate-value" id="depositEstimateValue">—</span>
+            </div>
+          </div>
+          <div id="stepPayment" style="display:none;">
+            <div class="deposit-payment-box">
+              <p class="deposit-amount-label">Pay exactly</p>
+              <p class="deposit-amount-value" id="payerAmount">—</p>
+              <p class="deposit-currency" id="payerCurrency">—</p>
+              <div class="deposit-qr-wrap">
+                <img id="qrImg" src="" alt="QR code" class="deposit-qr">
+              </div>
+              <p class="deposit-address-label">Address</p>
+              <div class="deposit-address-wrap">
+                <code id="depositAddress" class="deposit-address"></code>
+                <button type="button" class="btn btn-sm btn-outline" id="copyAddr">Copy</button>
+              </div>
+              <p class="deposit-note">Send only <strong id="networkName">—</strong>. Sending any other asset may result in permanent loss.</p>
+              <button type="button" class="btn btn-outline" id="newDepositBtn" style="margin-top:1rem;">New deposit</button>
+            </div>
+          </div>
+        </div>
+        <div class="deposit-history-section">
+          <h2 class="deposit-history-title">Deposit history</h2>
+          <div class="table-wrap">
+            <table class="users-table">
+              <thead>
+                <tr>
+                  <th>Order ID</th>
+                  <th>Amount</th>
+                  <th>Currency</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                  <th>Paid</th>
+                </tr>
+              </thead>
+              <tbody id="depositHistoryBody">
+                <tr><td colspan="6">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/layout.js"></script>
+  <script src="/js/toast.js"></script>
+  <script src="/js/crisp.js"></script>
+  <script src="/js/app.js"></script>
+  <script src="/js/sidebar.js"></script>
+  <script>
+    const needLogin = document.getElementById('needLogin');
+    const needVerify = document.getElementById('needVerify');
+    const depositContent = document.getElementById('depositContent');
+    const stepForm = document.getElementById('stepForm');
+    const stepPayment = document.getElementById('stepPayment');
+    const amountInput = document.getElementById('amount');
+    const cryptoDropdown = document.getElementById('cryptoDropdown');
+    const cryptoDisplay = document.getElementById('cryptoDisplay');
+    const cryptoDisplayText = document.getElementById('cryptoDisplayText');
+    const cryptoGrid = document.getElementById('cryptoGrid');
+    const finalizeBtn = document.getElementById('finalizeBtn');
+    const payerAmountEl = document.getElementById('payerAmount');
+    const payerCurrencyEl = document.getElementById('payerCurrency');
+    const qrImg = document.getElementById('qrImg');
+    const depositAddress = document.getElementById('depositAddress');
+    const copyAddrBtn = document.getElementById('copyAddr');
+    const networkNameEl = document.getElementById('networkName');
+    const newDepositBtn = document.getElementById('newDepositBtn');
+    const depositHistoryBody = document.getElementById('depositHistoryBody');
+    const depositEstimateValue = document.getElementById('depositEstimateValue');
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('success') === '1') toast('Payment received! Your balance will be updated shortly. Check your email for confirmation.', 'success');
+
+    let cryptoOptions = [];
+
+    let selectedCrypto = null;
+
+    async function loadOptions() {
+      const r = await fetch('/api/deposit/options');
+      if (!r.ok) return;
+      const d = await r.json();
+      cryptoOptions = d.options || [];
+      cryptoGrid.innerHTML = cryptoOptions.map(o => {
+        const val = o.currency + '|' + o.network;
+        return '<div class="filter-card deposit-crypto-card" data-value="' + val + '" data-label="' + (o.label || '').replace(/"/g, '&quot;') + '">' +
+          '<span class="filter-card-name">' + (o.label || o.currency) + '</span>' +
+          '</div>';
+      }).join('');
+      cryptoGrid.querySelectorAll('.deposit-crypto-card').forEach(card => {
+        card.addEventListener('click', () => {
+          selectedCrypto = card.dataset.value;
+          cryptoDisplayText.textContent = card.dataset.label || selectedCrypto;
+          cryptoGrid.querySelectorAll('.deposit-crypto-card').forEach(c => c.classList.remove('selected'));
+          card.classList.add('selected');
+          cryptoDropdown.classList.remove('open');
+          updateEstimate();
+        });
+      });
+    }
+
+    cryptoDisplay.addEventListener('click', () => {
+      cryptoDropdown.classList.toggle('open');
+    });
+    document.addEventListener('click', (e) => {
+      if (!cryptoDropdown.contains(e.target)) cryptoDropdown.classList.remove('open');
+    });
+
+    const COINGECKO_IDS = { USDT: 'tether', USDC: 'usd-coin', BTC: 'bitcoin', ETH: 'ethereum', TRX: 'tron' };
+    let rateCache = {};
+    let rateCacheTime = 0;
+    const RATE_CACHE_MS = 60000;
+
+    async function fetchRates() {
+      if (Date.now() - rateCacheTime < RATE_CACHE_MS && Object.keys(rateCache).length) return rateCache;
+      try {
+        const r = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tron,tether,usd-coin&vs_currencies=usd');
+        const d = await r.json();
+        rateCache = {
+          USDT: 1, USDC: 1,
+          BTC: d.bitcoin?.usd || 0, ETH: d.ethereum?.usd || 0, TRX: d.tron?.usd || 0
+        };
+        rateCacheTime = Date.now();
+      } catch (e) { rateCache = { USDT: 1, USDC: 1, BTC: 0, ETH: 0, TRX: 0 }; }
+      return rateCache;
+    }
+
+    function formatCryptoAmount(amt, currency) {
+      if (currency === 'USDT' || currency === 'USDC') return amt.toFixed(2);
+      if (currency === 'BTC' && amt < 0.01) return amt.toFixed(8);
+      if (currency === 'ETH' && amt < 0.01) return amt.toFixed(8);
+      if (amt >= 1) return amt.toFixed(4);
+      return amt.toFixed(6);
+    }
+
+    async function updateEstimate() {
+      const amt = parseFloat(amountInput.value);
+      const val = selectedCrypto;
+      if (!amt || amt < 0 || !val) {
+        depositEstimateValue.textContent = '—';
+        return;
+      }
+      const [currency] = val.split('|');
+      const rates = await fetchRates();
+      const rate = rates[currency];
+      if (!rate || rate <= 0) {
+        depositEstimateValue.textContent = '~' + amt.toFixed(2) + ' ' + currency;
+        return;
+      }
+      const cryptoAmt = amt / rate;
+      depositEstimateValue.textContent = '~' + formatCryptoAmount(cryptoAmt, currency) + ' ' + currency;
+    }
+
+    amountInput.addEventListener('input', updateEstimate);
+    amountInput.addEventListener('change', updateEstimate);
+
+    async function loadDepositHistory() {
+      const r = await fetch('/api/deposit/history');
+      if (!r.ok) return;
+      const d = await r.json();
+      const list = d.deposits || [];
+      depositHistoryBody.innerHTML = list.map(dep => {
+        const created = dep.created_at ? new Date(dep.created_at).toLocaleString() : '—';
+        const paid = dep.paid_at ? new Date(dep.paid_at).toLocaleString() : '—';
+        return '<tr><td>' + (dep.order_id || '—') + '</td><td>$' + Number(dep.amount_usd || 0).toFixed(2) + '</td><td>' + (dep.to_currency || '—') + '</td><td>' + (dep.status || '—') + '</td><td>' + created + '</td><td>' + paid + '</td></tr>';
+      }).join('') || '<tr><td colspan="6">No deposits yet</td></tr>';
+    }
+
+    async function checkAuth() {
+      const r = await fetch('/api/auth/me');
+      const d = r.ok ? await r.json() : {};
+      if (!d.user) {
+        depositContent.style.display = 'none';
+        needVerify.style.display = 'none';
+        needLogin.style.display = 'block';
+        return false;
+      }
+      if (!d.user.emailVerified) {
+        depositContent.style.display = 'none';
+        needLogin.style.display = 'none';
+        needVerify.style.display = 'block';
+        return false;
+      }
+      needLogin.style.display = 'none';
+      needVerify.style.display = 'none';
+      depositContent.style.display = 'block';
+      loadDepositHistory();
+      return true;
+    }
+
+    finalizeBtn.addEventListener('click', async () => {
+      const amt = parseFloat(amountInput.value);
+      if (!amt || amt < 1 || amt > 10000) {
+        toast('Enter amount between $1 and $10,000', 'error');
+        return;
+      }
+      const val = selectedCrypto;
+      if (!val) {
+        toast('Select cryptocurrency and network', 'error');
+        return;
+      }
+      const [to_currency, network] = val.split('|');
+      finalizeBtn.disabled = true;
+      try {
+        const r = await fetch('/api/deposit/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount: amt, to_currency, network })
+        });
+        const d = await r.json();
+        if (!r.ok) {
+          toast(d.error || 'Failed to create payment', 'error');
+          return;
+        }
+        stepForm.style.display = 'none';
+        stepPayment.style.display = 'block';
+        payerAmountEl.textContent = d.payer_amount || '—';
+        payerCurrencyEl.textContent = d.payer_currency || d.network || '—';
+        depositAddress.textContent = d.address || '—';
+        networkNameEl.textContent = (cryptoOptions.find(o => o.currency === to_currency && o.network === network)?.label || d.payer_currency || d.network);
+        if (d.address) {
+          qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(d.address);
+          qrImg.style.display = '';
+        } else {
+          qrImg.style.display = 'none';
+        }
+        loadDepositHistory();
+      } catch (e) {
+        toast('Request failed', 'error');
+      } finally {
+        finalizeBtn.disabled = false;
+      }
+    });
+
+    newDepositBtn.addEventListener('click', () => {
+      stepPayment.style.display = 'none';
+      stepForm.style.display = 'block';
+    });
+
+    copyAddrBtn.addEventListener('click', () => {
+      const addr = depositAddress.textContent;
+      if (addr && addr !== '—') {
+        navigator.clipboard.writeText(addr).then(() => toast('Address copied', 'success')).catch(() => toast('Copy failed', 'error'));
+      }
+    });
+
+    (async () => {
+      await loadOptions();
+      await checkAuth();
+      updateEstimate();
+      if (window.updateBalance) window.updateBalance();
+    })();
+  </script>
+</body>
+</html>
