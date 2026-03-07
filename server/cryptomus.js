@@ -66,6 +66,7 @@ async function request(method, path, body = {}) {
         }
       } catch (_) {}
     }
+    console.log(res.body.text());
     throw new Error(
       res.status === 401 ? 'Invalid Cryptomus API key or merchant ID' :
       res.status === 403 ? 'Cryptomus returned 403: add your server IP to the Cryptomus merchant IP whitelist in the Cryptomus dashboard.' :
