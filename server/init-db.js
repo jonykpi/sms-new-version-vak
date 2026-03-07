@@ -64,6 +64,11 @@ async function init() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id)
     )`,
+    `CREATE TABLE IF NOT EXISTS sessions (
+      session_id VARCHAR(128) NOT NULL PRIMARY KEY,
+      expires INT UNSIGNED NOT NULL,
+      data MEDIUMTEXT
+    )`,
     `INSERT IGNORE INTO settings (\`key\`, value) VALUES ('rub_to_usd', '0.011')`,
     `INSERT IGNORE INTO settings (\`key\`, value) VALUES ('commission_percent', '5')`,
     `INSERT IGNORE INTO settings (\`key\`, value) VALUES ('cache_ttl_minutes', '5')`,
@@ -104,7 +109,7 @@ async function init() {
   } catch (e) {}
 
   await conn.end();
-  console.log('MySQL database initialized. Tables: users, settings, activations, balance_log');
+  console.log('MySQL database initialized. Tables: users, settings, activations, balance_log, sessions');
 }
 
 init().catch((e) => {

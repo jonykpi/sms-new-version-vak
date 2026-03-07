@@ -2,6 +2,8 @@ require('dotenv').config();
 const path = require('path');
 const fs = require('fs');
 const express = require('express');
+const session = require('express-session');
+const MySQLStore = require('express-mysql-session')(session);
 
 const WEBSITE_NAME = process.env.WEBSITE_NAME || 'text2fa.com';
 
@@ -9,7 +11,6 @@ function sendHtmlWithSiteName(res, filePath) {
   const html = fs.readFileSync(filePath, 'utf8');
   res.send(html.replace(/\{\{WEBSITE_NAME\}\}/g, WEBSITE_NAME));
 }
-const session = require('express-session');
 const cookieParser = require('cookie-parser');
 const { maintenanceMiddleware } = require('./middleware/maintenance');
 
@@ -21,15 +22,35 @@ const depositRoutes = require('./routes/deposit');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+/* Trust first proxy (nginx, etc.) so req.secure and IP are correct; required for cookies behind HTTPS */
+app.set('trust proxy', 1);
+
+const sessionStoreOptions = {
+  host: process.env.DB_HOST || '127.0.0.1',
+  port: parseInt(process.env.DB_PORT || '3306', 10),
+  user: process.env.DB_USERNAME || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_DATABASE || 'vak_copy',
+  createDatabaseTable: true,
+  expiration: 7 * 24 * 60 * 60 * 1000,
+};
+const sessionStore = new MySQLStore(sessionStoreOptions);
+
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
 app.use(
   session({
     secret: process.env.SESSION_SECRET || 'text2fa-secret-change-in-production',
+    store: sessionStore,
     resave: false,
     saveUninitialized: false,
-    cookie: { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000 },
+    cookie: {
+      httpOnly: true,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+    },
   })
 );
 
