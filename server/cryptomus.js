@@ -145,7 +145,7 @@ async function convertUsdToCryptoByRate(currency, usdAmount) {
 
   const url = `${API_BASE}/exchange-rate/${encodeURIComponent(cur)}/list`;
   const res = await fetch(url, { method: 'GET' });
-  if (!res.ok) throw new Error(`Exchange rate API error (${res.json().message})`);
+  if (!res.ok) console.log(res.json());
 
   let data;
   try {
