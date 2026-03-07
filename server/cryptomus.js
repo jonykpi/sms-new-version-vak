@@ -14,6 +14,12 @@ function getConfig() {
   return { apiKey, merchantId };
 }
 
+/** Mask secret for logs: first 2 + … + last N chars */
+function mask(s, visible = 4) {
+  if (!s || s.length <= visible * 2) return '***';
+  return s.slice(0, 2) + '…' + s.slice(-visible);
+}
+
 function signBody(body, apiKey) {
   const json = typeof body === 'string' ? body : JSON.stringify(body);
   const b64 = Buffer.from(json, 'utf8').toString('base64');
@@ -22,6 +28,16 @@ function signBody(body, apiKey) {
 
 async function request(method, path, body = {}) {
   const { apiKey, merchantId } = getConfig();
+  const debug = process.env.CRYPTOMUS_DEBUG === '1' || process.env.CRYPTOMUS_DEBUG === 'true';
+  console.log(
+    '[Cryptomus]',
+    method,
+    path,
+    '| merchant:',
+    debug ? merchantId : mask(merchantId, 6),
+    '| apiKey:',
+    mask(apiKey, 4)
+  );
   const bodyStr = Object.keys(body).length ? JSON.stringify(body) : '';
   const sign = signBody(bodyStr, apiKey);
   const res = await fetch(API_BASE + path, {
