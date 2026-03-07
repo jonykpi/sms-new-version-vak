@@ -27,6 +27,16 @@ function signBody(body, apiKey) {
   return crypto.createHash('md5').update(b64 + apiKey).digest('hex');
 }
 
+async function logOutboundIpHint(prefix = '[Cryptomus]') {
+  try {
+    const ipRes = await fetch('https://api.ipify.org?format=json');
+    const ipData = await ipRes.json();
+    if (ipData && ipData.ip) {
+      console.error(`${prefix} Your server outbound IP is:`, ipData.ip, '— add this IP to Cryptomus merchant IP whitelist.');
+    }
+  } catch (_) {}
+}
+
 async function request(method, path, body = {}) {
   const { apiKey, merchantId } = getConfig();
   const debug = process.env.CRYPTOMUS_DEBUG === '1' || process.env.CRYPTOMUS_DEBUG === 'true';
@@ -58,15 +68,8 @@ async function request(method, path, body = {}) {
     const snippet = text.slice(0, 200).replace(/\s+/g, ' ').trim();
     console.error('[Cryptomus] Non-JSON response:', res.status, res.statusText, 'Body:', snippet);
     if (res.status === 403) {
-      try {
-        const ipRes = await fetch('https://api.ipify.org?format=json');
-        const ipData = await ipRes.json();
-        if (ipData && ipData.ip) {
-          console.error('[Cryptomus] Your server outbound IP is:', ipData.ip, '— add this IP to Cryptomus merchant IP whitelist.');
-        }
-      } catch (_) {}
+      await logOutboundIpHint('[Cryptomus]');
     }
-    console.log(res.body.text());
     throw new Error(
       res.status === 401 ? 'Invalid Cryptomus API key or merchant ID' :
       res.status === 403 ? 'Cryptomus returned 403: add your server IP to the Cryptomus merchant IP whitelist in the Cryptomus dashboard.' :
@@ -84,11 +87,10 @@ async function request(method, path, body = {}) {
 
 /** V2 user-api request: sign = md5(base64_encode(json_body) . API_KEY), header userId = merchant UUID */
 async function requestV2(method, path, body = {}) {
-  console.log(API_BASE_V2 + path);
   const { apiKey, merchantId } = getConfig();
   const bodyStr = typeof body === 'string' ? body : (Object.keys(body).length ? JSON.stringify(body) : '');
   const sign = signBody(bodyStr, apiKey);
- 
+
   const res = await fetch(API_BASE_V2 + path, {
     method,
     headers: {
@@ -98,7 +100,6 @@ async function requestV2(method, path, body = {}) {
     },
     body: bodyStr || undefined,
   });
-  console.log(merchantId,sign);
   const text = await res.text();
   let data;
   try {
@@ -106,15 +107,13 @@ async function requestV2(method, path, body = {}) {
   } catch {
     const snippet = text.slice(0, 200).replace(/\s+/g, ' ').trim();
     console.error('[Cryptomus v2] Non-JSON response:', res.status, res.statusText, 'Body:', snippet);
+    if (res.status === 403) await logOutboundIpHint('[Cryptomus v2]');
     throw new Error(`Cryptomus calculate API error (${res.status})`);
   }
-  console.log(bodyStr);
-  console.log(data);
   if (data.state === 1) {
     const msg = data.message || (data.errors ? JSON.stringify(data.errors) : null) || 'Cryptomus API error';
     throw new Error(msg);
   }
-  console.log(data);
   return data.result || data;
 }
 
@@ -143,49 +142,43 @@ async function convertUsdToCryptoByRate(currency, usdAmount) {
   if (!cur) throw new Error('Currency is required');
   if (!Number.isFinite(amount) || amount < 0) throw new Error('Invalid USD amount');
 
-  const url = `${API_BASE}/exchange-rate/${encodeURIComponent(cur)}/list`;
-  console.log(url);
-  const res = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      "User-Agent": "Mozilla/5.0",
-      "Accept": "application/json",
-      "Accept-Language": "en-US,en;q=0.9",
-      "Accept-Encoding": "gzip, deflate, br",
-      "Connection": "keep-alive",
-      "Referer": "https://www.cryptomus.com/",
-      "Origin": "https://www.cryptomus.com",
-      "Sec-Fetch-Dest": "empty",
-    }
-  });
-  if (!res.ok) {
-    const errorBody = await res.text(); // or res.json()
-    console.log("Status:", res.status);
-    console.log("Response:", errorBody);
-  }
-
-  let data;
   try {
-    data = await res.json();
-  } catch {
-    throw new Error('Exchange rate API returned invalid JSON');
+    const url = `${API_BASE}/exchange-rate/${encodeURIComponent(cur)}/list`;
+    const res = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } });
+    if (!res.ok) {
+      if (res.status === 403) await logOutboundIpHint('[Cryptomus rate]');
+      throw new Error(`Exchange rate API error (${res.status})`);
+    }
+
+    const data = await res.json();
+    const list = Array.isArray(data?.result) ? data.result : [];
+    const usdRow = list.find((row) => String(row?.to || '').toUpperCase() === 'USD');
+    const course = Number(usdRow?.course);
+
+    if (!Number.isFinite(course) || course <= 0) {
+      throw new Error(`USD exchange rate not found for ${cur}`);
+    }
+
+    return {
+      currency: cur,
+      course,
+      amount: amount / course,
+    };
+  } catch (rateError) {
+    // Fallback for blocked/unstable public exchange-rate endpoint:
+    // use authenticated calculate endpoint and derive course from 1 USD.
+    const oneUsd = await calculate({ to: cur, from_amount: '1' });
+    const oneUsdInCrypto = Number(oneUsd?.to ?? oneUsd?.to_amount ?? oneUsd?.amount);
+    if (!Number.isFinite(oneUsdInCrypto) || oneUsdInCrypto <= 0) {
+      throw new Error(`Failed to convert USD to ${cur}: ${rateError.message}`);
+    }
+    const course = 1 / oneUsdInCrypto;
+    return {
+      currency: cur,
+      course,
+      amount: amount * oneUsdInCrypto,
+    };
   }
-
-  const list = Array.isArray(data?.result) ? data.result : [];
-  const usdRow = list.find((row) => String(row?.to || '').toUpperCase() === 'USD');
-  const course = Number(usdRow?.course);
-
-  if (!Number.isFinite(course) || course <= 0) {
-    throw new Error(`USD exchange rate not found for ${cur}`);
-  }
-
-  return {
-    currency: cur,
-    course,
-    amount: amount / course,
-  };
 }
 
 /**
