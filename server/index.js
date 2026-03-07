@@ -11,6 +11,7 @@ function sendHtmlWithSiteName(res, filePath) {
 }
 const session = require('express-session');
 const cookieParser = require('cookie-parser');
+const { maintenanceMiddleware } = require('./middleware/maintenance');
 
 const authRoutes = require('./routes/auth');
 const apiRoutes = require('./routes/api');
@@ -31,6 +32,8 @@ app.use(
     cookie: { httpOnly: true, maxAge: 7 * 24 * 60 * 60 * 1000 },
   })
 );
+
+app.use(maintenanceMiddleware);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/deposit', depositRoutes);
@@ -53,6 +56,7 @@ app.use((req, res, next) => {
 app.use(express.static(publicDir, { index: false }));
 
 app.get('/', (req, res) => sendHtmlWithSiteName(res, path.join(publicDir, 'index.html')));
+app.get('/maintenance', (req, res) => sendHtmlWithSiteName(res, path.join(publicDir, 'maintenance.html')));
 app.get('/login', (req, res) => sendHtmlWithSiteName(res, path.join(publicDir, 'login.html')));
 app.get('/register', (req, res) => sendHtmlWithSiteName(res, path.join(publicDir, 'register.html')));
 app.get('/forgot-password', (req, res) => sendHtmlWithSiteName(res, path.join(publicDir, 'forgot-password.html')));

@@ -96,7 +96,9 @@
   }
   function updateFlagDisplay(el, code) {
     if (!el) return;
-    const fu = flagUrl(code);
+    const c = countriesData.find(x => ((x.countryCode || x.country) || '').toLowerCase() === (code || '').toLowerCase());
+    const localIcon = (c && c.icon) ? c.icon : null;
+    const fu = localIcon || flagUrl(code);
     const emoji = countryFlag(code);
     if (fu) el.innerHTML = '<img src="' + fu + '" alt="" class="filter-display-flag" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'inline\'"><span style="display:none">' + emoji + '</span>';
     else el.textContent = emoji;
@@ -108,17 +110,38 @@
     let ops;
     if (typeof apiOps === 'string' && apiOps.trim()) {
       ops = ['any', ...apiOps.trim().split(/\s+/).filter(Boolean)];
-    } else if (Array.isArray(apiOps) && apiOps.filter(o => o && o !== 'any').length > 0) {
-      ops = apiOps;
+    } else if (Array.isArray(apiOps) && apiOps.length > 0) {
+      const first = apiOps[0];
+      if (first && typeof first === 'object' && 'id' in first) {
+        ops = apiOps;
+      } else {
+        ops = apiOps.filter(o => o && o !== 'any').length > 0 ? apiOps : (OPERATORS_BY_COUNTRY[cc] ? ['any', ...OPERATORS_BY_COUNTRY[cc].trim().split(/\s+/).filter(Boolean)] : ['any']);
+      }
     } else {
       const fallback = OPERATORS_BY_COUNTRY[cc];
       ops = fallback ? ['any', ...fallback.trim().split(/\s+/).filter(Boolean)] : ['any'];
     }
-    const opList = ops.filter(o => o && o !== 'any');
-    operatorGrid.innerHTML = '<div class="filter-card filter-card-operator' + (!operatorInput.value ? ' selected' : '') + '" data-operator=""><div class="filter-card-logo">—</div><span class="filter-card-name">Any operator</span></div>' + opList.map(o => {
-      const sel = (operatorInput.value === o) ? ' selected' : '';
-      return '<div class="filter-card filter-card-operator' + sel + '" data-operator="' + (o || '').replace(/"/g, '&quot;') + '"><div class="filter-card-logo">' + (o.slice(0,2) || '—').toUpperCase() + '</div><span class="filter-card-name">' + (o || '—') + '</span></div>';
-    }).join('');
+    const isNewFormat = Array.isArray(ops) && ops[0] && typeof ops[0] === 'object' && 'id' in ops[0];
+    const opList = isNewFormat ? ops : ops.filter(o => o && o !== 'any');
+
+    if (isNewFormat) {
+      operatorGrid.innerHTML = opList.map(op => {
+        const isAny = op.id === 'any' || !op.id;
+        const sel = (operatorInput.value === (isAny ? '' : op.id)) ? ' selected' : '';
+        const name = isAny ? 'Any operator' : (op.name || op.id);
+        let logoContent = '—';
+        if (!isAny) {
+          if (op.icon) logoContent = '<img src="' + (op.icon || '').replace(/"/g, '&quot;') + '" alt="" class="filter-card-logo-img" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'"><span class="filter-card-logo-fallback" style="display:none">' + (op.id.slice(0,2) || '—').toUpperCase() + '</span>';
+          else logoContent = (op.id.slice(0,2) || '—').toUpperCase();
+        }
+        return '<div class="filter-card filter-card-operator' + sel + '" data-operator="' + (isAny ? '' : op.id).replace(/"/g, '&quot;') + '"><div class="filter-card-logo">' + logoContent + '</div><span class="filter-card-name">' + (name || '—').replace(/"/g, '&quot;') + '</span></div>';
+      }).join('');
+    } else {
+      operatorGrid.innerHTML = '<div class="filter-card filter-card-operator' + (!operatorInput.value ? ' selected' : '') + '" data-operator=""><div class="filter-card-logo">—</div><span class="filter-card-name">Any operator</span></div>' + opList.map(o => {
+        const sel = (operatorInput.value === o) ? ' selected' : '';
+        return '<div class="filter-card filter-card-operator' + sel + '" data-operator="' + (o || '').replace(/"/g, '&quot;') + '"><div class="filter-card-logo">' + (o.slice(0,2) || '—').toUpperCase() + '</div><span class="filter-card-name">' + (o || '—') + '</span></div>';
+      }).join('');
+    }
     operatorGrid.querySelectorAll('.filter-card-operator').forEach(card => {
       card.addEventListener('click', () => selectOperator(card.dataset.operator));
     });
@@ -146,14 +169,17 @@
   }
   function renderCountryGrid() {
     if (!countriesData.length) return;
-    const filtered = countriesData.filter(c => (c.count || 0) > 0);
-    if (!filtered.length) { countryGrid.innerHTML = '<div class="filter-grid-loading">No countries with available numbers</div>'; return; }
-    countryGrid.innerHTML = filtered.map(c => {
+    const sorted = [...countriesData].sort((a, b) => {
+      const nameA = (a.countryName || a.countryCode || a.country || '').toLowerCase();
+      const nameB = (b.countryName || b.countryCode || b.country || '').toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+    countryGrid.innerHTML = sorted.map(c => {
       const code = c.countryCode || c.country || '';
       const name = c.countryName || c.country || code;
-      const url = flagUrl(code);
+      const imgSrc = c.icon || flagUrl(code);
       const sel = (countryInput.value === code) ? ' selected' : '';
-      const flagHtml = url ? '<img src="' + url + '" alt="" class="filter-card-flag-img" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'"><span class="filter-card-flag-emoji" style="display:none">' + countryFlag(code) + '</span>' : '<span class="filter-card-flag-emoji">' + countryFlag(code) + '</span>';
+      const flagHtml = imgSrc ? '<img src="' + imgSrc + '" alt="" class="filter-card-flag-img" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'"><span class="filter-card-flag-emoji" style="display:none">' + countryFlag(code) + '</span>' : '<span class="filter-card-flag-emoji">' + countryFlag(code) + '</span>';
       return '<div class="filter-card filter-card-country' + sel + '" data-country="' + code + '" data-name="' + (name || '').replace(/"/g, '&quot;') + '"><div class="filter-card-flag">' + flagHtml + '</div><span class="filter-card-name">' + (name || code) + '</span><span class="filter-card-pcs" data-country="' + code + '">' + ((c.count != null && c.count >= 0) ? (c.count >= 1000 ? (c.count/1000).toFixed(1) + 'k' : c.count) + ' pcs' : '— pcs') + '</span></div>';
     }).join('');
     countryGrid.querySelectorAll('.filter-card-country').forEach(card => {
@@ -166,16 +192,10 @@
       if (!r.ok) return;
       const raw = await r.json();
       countriesData = normalizeCountries(raw);
-      const svc = (servicesData[0] && servicesData[0].code) || 'wa';
-      const counts = await Promise.all(countriesData.map(c => {
-        const code = c.countryCode || c.country;
-        if (!code) return { ...c, count: 0 };
-        return fetch('/api/price/' + svc + '?country=' + code).then(res => res.ok ? res.json() : {}).then(d => ({ ...c, count: d.count != null ? d.count : 0 })).catch(() => ({ ...c, count: 0 }));
-      }));
-      countriesData = counts;
+      /* Count comes from getCountryOperatorList (total available numbers per country) - no per-service fetch */
       const cur = countryInput.value;
+      const match = countriesData.find(x => (x.countryCode || x.country) === cur);
       const withStock = countriesData.filter(x => (x.count || 0) > 0);
-      const match = withStock.find(x => (x.countryCode || x.country) === cur);
       const sel = match || withStock[0] || countriesData[0];
       if (sel) {
         countryInput.value = sel.countryCode || sel.country;
@@ -246,7 +266,9 @@
       serviceList.innerHTML = servicesData.map(s => {
         const name = (s.name || s.code || '').replace(/"/g, '&quot;');
         const code = (s.code || '').replace(/"/g, '&quot;');
-        return '<li class="service-item" data-name="' + name + '" data-code="' + code + '"><span class="service-icon" title="' + (s.name || s.code) + '">' + (s.name || s.code).slice(0,2).toUpperCase() + '</span><span class="service-name">' + (s.name || s.code) + '</span><span class="service-pcs" data-service="' + s.code + '">— pcs</span><span class="service-price" data-service="' + s.code + '">—</span><button type="button" class="btn btn-get" data-service="' + s.code + '" data-name="' + (s.name || s.code) + '">GET</button></li>';
+        const iconUrl = '/assets/service/' + (s.code || '') + '.png';
+        const iconHtml = '<img src="' + iconUrl + '" alt="" class="service-icon-img" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'"><span class="service-icon-fallback" style="display:none">' + (s.name || s.code).slice(0, 2).toUpperCase() + '</span>';
+        return '<li class="service-item" data-name="' + name + '" data-code="' + code + '"><span class="service-icon" title="' + (s.name || s.code) + '">' + iconHtml + '</span><span class="service-name">' + (s.name || s.code) + '</span><span class="service-pcs" data-service="' + s.code + '">— pcs</span><span class="service-price" data-service="' + s.code + '">—</span><button type="button" class="btn btn-get" data-service="' + s.code + '" data-name="' + (s.name || s.code) + '">GET</button></li>';
       }).join('') || '<li class="service-item">No services</li>';
       refreshPrices();
       serviceList.querySelectorAll('.btn-get').forEach(btn => { btn.addEventListener('click', () => getNumber(btn.dataset.service, btn.dataset.name, false)); });

@@ -69,6 +69,8 @@ async function init() {
     `INSERT IGNORE INTO settings (\`key\`, value) VALUES ('cache_ttl_minutes', '5')`,
     `INSERT IGNORE INTO settings (\`key\`, value) VALUES ('notification_enabled', '0')`,
     `INSERT IGNORE INTO settings (\`key\`, value) VALUES ('notification_text', '')`,
+    `INSERT IGNORE INTO settings (\`key\`, value) VALUES ('maintenance_mode', '0')`,
+    `INSERT IGNORE INTO settings (\`key\`, value) VALUES ('maintenance_code', '')`,
   ];
   for (const sql of statements) await conn.query(sql);
 

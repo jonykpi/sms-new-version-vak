@@ -294,6 +294,8 @@ body::before {
   background: var(--bg-sidebar);
   margin-bottom: 0.4rem;
 }
+.filter-card-logo img.filter-card-logo-img { width: 100%; height: 100%; object-fit: contain; }
+.filter-card-logo .filter-card-logo-fallback { display: flex; align-items: center; justify-content: center; }
 .filter-card-name { font-size: 0.8rem; font-weight: 600; color: var(--text); line-height: 1.2; }
 .filter-card-pcs { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem; }
 
@@ -396,6 +398,8 @@ body::before {
   font-weight: 600;
   color: var(--text-muted);
 }
+.service-icon img.service-icon-img { width: 100%; height: 100%; object-fit: contain; border-radius: 6px; }
+.service-icon .service-icon-fallback { display: flex; align-items: center; justify-content: center; }
 .service-name { flex: 1; font-size: 0.95rem; min-width: 0; }
 .service-pcs { color: var(--primary); font-size: 0.85rem; font-weight: 600; min-width: 3.5rem; text-align: right; }
 .service-price { color: var(--text); font-size: 0.9rem; font-weight: 600; min-width: 4rem; text-align: right; }

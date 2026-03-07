@@ -73,6 +73,15 @@ async function getCountryList() {
   return fetchApi('getCountryList/');
 }
 
+/**
+ * Country list with operators and icons (VAK getCountryOperatorList).
+ * Returns { AO: [{ name, icon, count, operators }], ... }.
+ * Icon paths are like /static/country/ao.png; we serve from /assets/country/ locally.
+ */
+async function getCountryOperatorList() {
+  return fetchApi('getCountryOperatorList/');
+}
+
 /* Country: new API (ru,us,gb) -> stubs numeric (0,187,16) */
 const COUNTRY_TO_STUBS = {
   ru: 0, ua: 1, kz: 2, ph: 4, mm: 5, id: 6, my: 7, ke: 8, tz: 9, vn: 10, kg: 11,
@@ -193,6 +202,7 @@ module.exports = {
   getBalance,
   getCountNumber,
   getCountryList,
+  getCountryOperatorList,
   getNumber,
   getSmsCode,
   setStatus,

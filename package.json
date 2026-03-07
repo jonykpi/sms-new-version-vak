@@ -6,7 +6,11 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "init-db": "node server/init-db.js"
+    "init-db": "node server/init-db.js",
+    "download-country-icons": "node scripts/download-country-icons.js",
+    "download-service-icons": "node scripts/download-service-icons.js",
+    "maintenance:on": "node scripts/set-maintenance.js on",
+    "maintenance:off": "node scripts/set-maintenance.js off"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

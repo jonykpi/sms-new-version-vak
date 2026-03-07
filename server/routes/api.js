@@ -21,19 +21,101 @@ function rubToUsd(rub, settings) {
 }
 
 function normalizeCountryList(raw) {
-  if (Array.isArray(raw)) return raw.filter(c => c && (c.countryCode || c.country));
-  const obj = raw || {};
-  return Object.entries(obj).map(([k, v]) => {
-    if (!v || typeof v !== 'object') return null;
-    const code = v.countryCode || v.country || (String(k).length === 2 ? k : null);
-    if (!code) return null;
-    const ops = v.operatorList || v.operators;
-    let operatorList = ['any'];
-    if (Array.isArray(ops)) operatorList = ops;
-    else if (ops && typeof ops === 'object' && !Array.isArray(ops)) operatorList = ['any', ...Object.keys(ops)];
-    else if (typeof ops === 'string' && ops.trim()) operatorList = ['any', ...ops.trim().split(/\s+/).filter(Boolean)];
-    return { countryCode: code, countryName: v.countryName || v.country || code, operatorList };
-  }).filter(Boolean);
+  const DISPLAY_NAMES = {
+    us: 'United States',
+    usv: 'United States virtual',
+    cav: 'Canada virtual',
+    gb: 'United Kingdom',
+    ru: 'Russia',
+    ua: 'Ukraine',
+    ca: 'Canada',
+    au: 'Australia',
+    de: 'Germany',
+    fr: 'France',
+    in: 'India',
+    br: 'Brazil',
+    mx: 'Mexico',
+    pl: 'Poland',
+    nl: 'Netherlands',
+    it: 'Italy',
+    es: 'Spain',
+    id: 'Indonesia',
+    ph: 'Philippines',
+    vn: 'Vietnam',
+    th: 'Thailand',
+    ng: 'Nigeria',
+    ke: 'Kenya',
+    za: 'South Africa',
+    eg: 'Egypt',
+    pk: 'Pakistan',
+    bd: 'Bangladesh',
+  };
+  let list;
+  if (Array.isArray(raw)) list = raw.filter(c => c && (c.countryCode || c.country));
+  else {
+    const obj = raw || {};
+    list = Object.entries(obj).map(([k, v]) => {
+      if (!v || typeof v !== 'object') return null;
+      const code = (v.countryCode || v.country || (String(k).length === 2 ? k : null));
+      if (!code) return null;
+      const codeLower = String(code).toLowerCase();
+      const ops = v.operatorList || v.operators;
+      let operatorList = ['any'];
+      if (Array.isArray(ops)) operatorList = ops;
+      else if (ops && typeof ops === 'object' && !Array.isArray(ops)) operatorList = ['any', ...Object.keys(ops)];
+      else if (ops && typeof ops === 'string' && ops.trim()) operatorList = ['any', ...ops.trim().split(/\s+/).filter(Boolean)];
+      const countryName = DISPLAY_NAMES[codeLower] || v.countryName || v.country || code;
+      return { countryCode: code, countryName, operatorList };
+    }).filter(Boolean);
+  }
+  return list.map(c => {
+    const code = c.countryCode || c.country;
+    const codeLower = String(code).toLowerCase();
+    const countryName = DISPLAY_NAMES[codeLower] || c.countryName || c.country || code;
+    return { ...c, countryCode: code, countryName };
+  });
+}
+
+/** Normalize getCountryOperatorList response: { AO: [{ name, icon, count, operators }], ... } -> array with local icon paths */
+function normalizeCountryOperatorList(raw) {
+  const DISPLAY_NAMES = {
+    us: 'United States',
+    usv: 'United States virtual',
+    cav: 'Canada virtual',
+    gb: 'United Kingdom',
+  };
+  function localOperatorIcon(iconPath) {
+    if (!iconPath || typeof iconPath !== 'string') return undefined;
+    const filename = iconPath.split('/').pop();
+    return filename ? '/assets/operator/' + filename : undefined;
+  }
+  const obj = raw && typeof raw === 'object' ? raw : {};
+  return Object.entries(obj).map(([codeKey, arr]) => {
+    if (!Array.isArray(arr) || !arr[0]) return null;
+    const entry = arr[0];
+    const codeLower = String(codeKey).toLowerCase();
+    const operators = entry.operators && typeof entry.operators === 'object' ? entry.operators : {};
+    const operatorList = [
+      { id: 'any', name: 'Any operator', icon: undefined },
+      ...Object.entries(operators).map(([id, list]) => {
+        const op = Array.isArray(list) && list[0] ? list[0] : { name: id, icon: null };
+        return { id, name: op.name || id, icon: localOperatorIcon(op.icon) };
+      }).filter(Boolean),
+    ];
+    const countryName = DISPLAY_NAMES[codeLower] || entry.name || codeKey;
+    let icon = null;
+    if (entry.icon && typeof entry.icon === 'string') {
+      const filename = entry.icon.split('/').pop() || '';
+      if (filename) icon = '/assets/country/' + filename;
+    }
+    return {
+      countryCode: codeLower,
+      countryName,
+      count: entry.count != null ? Number(entry.count) : 0,
+      operatorList,
+      icon: icon || undefined,
+    };
+  }).filter(Boolean).filter(c => (c.count != null && c.count > 0));
 }
 
 /* Public config (Crisp chat ID, website name, etc.) */
@@ -51,8 +133,14 @@ router.get('/countries', async (req, res) => {
     const cacheKey = 'countries';
     const cached = cache.get(cacheKey);
     if (cached) return res.json(cached);
-    const raw = await vak.getCountryList();
-    const data = normalizeCountryList(raw);
+    let data;
+    try {
+      const raw = await vak.getCountryOperatorList();
+      data = normalizeCountryOperatorList(raw);
+    } catch (e) {
+      const raw = await vak.getCountryList();
+      data = normalizeCountryList(raw);
+    }
     cache.set(cacheKey, data, ttl);
     res.json(data);
   } catch (e) {
