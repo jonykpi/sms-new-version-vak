@@ -1,0 +1,18 @@
+# Environment (secrets – do not commit)
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+
+# Logs and runtime
+npm-debug.log*
+*.log
+.DS_Store
+
+# Optional
+.idea/
+.vscode/
+*.swp
+*.swo
