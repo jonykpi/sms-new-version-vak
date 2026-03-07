@@ -795,6 +795,10 @@ body::before {
 }
 .deposit-estimate-label { color: var(--text-muted); margin-right: 0.5rem; }
 .deposit-estimate-value { font-weight: 600; color: var(--primary); }
+.deposit-estimate-line { margin: 0; color: var(--text); }
+.deposit-estimate-line strong { color: var(--primary); }
+.deposit-summary-line { margin: 0 0 1rem; padding: 0.75rem 1rem; background: rgba(34, 211, 238, 0.08); border-radius: 10px; border: 1px solid rgba(34, 211, 238, 0.2); font-size: 0.95rem; color: var(--text); }
+.deposit-summary-line strong { color: var(--primary); }
 .deposit-card-title { margin: 0 0 0.25rem; font-size: 1.25rem; }
 .deposit-card-subtitle { margin: 0 0 1rem; color: var(--text-muted); font-size: 0.9rem; }
 .deposit-guest-box { padding: 2rem; text-align: center; }

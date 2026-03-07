@@ -33,7 +33,20 @@ async function request(method, path, body = {}) {
     },
     body: bodyStr || undefined,
   });
-  const data = await res.json();
+  const text = await res.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    const snippet = text.slice(0, 200).replace(/\s+/g, ' ').trim();
+    console.error('[Cryptomus] Non-JSON response:', res.status, res.statusText, 'Body:', snippet);
+    throw new Error(
+      res.status === 401 ? 'Invalid Cryptomus API key or merchant ID' :
+      res.status === 403 ? 'Cryptomus access denied (check API key and IP)' :
+      res.status >= 500 ? 'Cryptomus server error — try again later' :
+      `Cryptomus API returned invalid response (${res.status}). Check CRYPTOMUS_API_KEY and CRYPTOMUS_MERCHANT_ID.`
+    );
+  }
   if (data.state === 1) throw new Error(data.message || data.errors ? JSON.stringify(data.errors) : 'Cryptomus API error');
   return data.result || data;
 }

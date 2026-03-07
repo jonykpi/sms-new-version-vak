@@ -52,12 +52,12 @@
               </div>
             </div>
             <div class="deposit-estimate" id="depositEstimate">
-              <span class="deposit-estimate-label">You will pay:</span>
-              <span class="deposit-estimate-value" id="depositEstimateValue">—</span>
+              <p class="deposit-estimate-line">You will get balance <strong id="depositBalanceAmt">$—</strong> after you deposit <strong id="depositCryptoAmt">—</strong> in <strong id="depositNetworkName">—</strong> network.</p>
             </div>
           </div>
           <div id="stepPayment" style="display:none;">
             <div class="deposit-payment-box">
+              <p class="deposit-summary-line">You will get balance <strong id="paymentBalanceAmt">$—</strong> after you deposit <strong id="paymentCryptoAmt">—</strong> in <strong id="paymentNetworkName">—</strong> network.</p>
               <p class="deposit-amount-label">Pay exactly</p>
               <p class="deposit-amount-value" id="payerAmount">—</p>
               <p class="deposit-currency" id="payerCurrency">—</p>
@@ -124,6 +124,12 @@
     const newDepositBtn = document.getElementById('newDepositBtn');
     const depositHistoryBody = document.getElementById('depositHistoryBody');
     const depositEstimateValue = document.getElementById('depositEstimateValue');
+    const depositBalanceAmt = document.getElementById('depositBalanceAmt');
+    const depositCryptoAmt = document.getElementById('depositCryptoAmt');
+    const depositNetworkName = document.getElementById('depositNetworkName');
+    const paymentBalanceAmt = document.getElementById('paymentBalanceAmt');
+    const paymentCryptoAmt = document.getElementById('paymentCryptoAmt');
+    const paymentNetworkName = document.getElementById('paymentNetworkName');
 
     const params = new URLSearchParams(window.location.search);
     if (params.get('success') === '1') toast('Payment received! Your balance will be updated shortly. Check your email for confirmation.', 'success');
@@ -189,22 +195,34 @@
       return amt.toFixed(6);
     }
 
+    function networkDisplayName(label) {
+      if (!label) return '—';
+      const m = label.match(/\(([^)]+)\)/);
+      return m ? m[1] : label;
+    }
+
     async function updateEstimate() {
       const amt = parseFloat(amountInput.value);
       const val = selectedCrypto;
       if (!amt || amt < 0 || !val) {
-        depositEstimateValue.textContent = '—';
+        depositBalanceAmt.textContent = '$—';
+        depositCryptoAmt.textContent = '—';
+        depositNetworkName.textContent = '—';
         return;
       }
-      const [currency] = val.split('|');
+      const [currency, network] = val.split('|');
+      const opt = cryptoOptions.find(o => o.currency === currency && o.network === network);
+      const networkLabel = networkDisplayName(opt?.label || network);
+      depositBalanceAmt.textContent = '$' + amt.toFixed(2);
+      depositNetworkName.textContent = networkLabel;
       const rates = await fetchRates();
       const rate = rates[currency];
       if (!rate || rate <= 0) {
-        depositEstimateValue.textContent = '~' + amt.toFixed(2) + ' ' + currency;
+        depositCryptoAmt.textContent = '~' + amt.toFixed(2) + ' ' + currency;
         return;
       }
       const cryptoAmt = amt / rate;
-      depositEstimateValue.textContent = '~' + formatCryptoAmount(cryptoAmt, currency) + ' ' + currency;
+      depositCryptoAmt.textContent = '~' + formatCryptoAmount(cryptoAmt, currency) + ' ' + currency;
     }
 
     amountInput.addEventListener('input', updateEstimate);
@@ -270,6 +288,9 @@
         }
         stepForm.style.display = 'none';
         stepPayment.style.display = 'block';
+        paymentBalanceAmt.textContent = '$' + amt.toFixed(2);
+        paymentCryptoAmt.textContent = (d.payer_amount || '—') + ' ' + (d.payer_currency || d.network || '');
+        paymentNetworkName.textContent = networkDisplayName(cryptoOptions.find(o => o.currency === to_currency && o.network === network)?.label || d.network);
         payerAmountEl.textContent = d.payer_amount || '—';
         payerCurrencyEl.textContent = d.payer_currency || d.network || '—';
         depositAddress.textContent = d.address || '—';
