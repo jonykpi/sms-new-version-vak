@@ -145,7 +145,13 @@ async function convertUsdToCryptoByRate(currency, usdAmount) {
 
   const url = `${API_BASE}/exchange-rate/${encodeURIComponent(cur)}/list`;
   console.log(url);
-  const res = await fetch(url, { method: 'GET' });
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    }
+  });
   if (!res.ok) {
     const errorBody = await res.text(); // or res.json()
     console.log("Status:", res.status);
