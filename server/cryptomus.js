@@ -131,6 +131,7 @@ async function calculate(opts) {
   return requestV2('POST', '/convert/calculate', body);
 }
 
+
 /**
  * Convert USD to crypto using exchange rate formula:
  * amount_in_crypto = usd_amount / course, where course is "<currency> -> USD".
