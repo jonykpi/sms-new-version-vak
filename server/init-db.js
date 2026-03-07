@@ -49,6 +49,7 @@ async function init() {
       status VARCHAR(32) NOT NULL DEFAULT 'pending',
       cryptomus_uuid VARCHAR(64),
       address VARCHAR(255),
+      deposit_url VARCHAR(512),
       payer_amount VARCHAR(64),
       payer_currency VARCHAR(16),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -95,6 +96,7 @@ async function init() {
     ['users', 'reset_token', 'VARCHAR(64)'],
     ['users', 'reset_token_expires', 'TIMESTAMP NULL'],
     ['users', 'suspended', 'TINYINT(1) NOT NULL DEFAULT 0'],
+    ['deposits', 'deposit_url', 'VARCHAR(512)'],
   ];
   for (const [table, col, def] of alterColumns) {
     try {

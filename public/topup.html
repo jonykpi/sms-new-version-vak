@@ -28,11 +28,11 @@
         <div class="deposit-card">
           <h2 class="deposit-card-title">Deposit</h2>
           <p class="deposit-card-subtitle">Top up your balance via cryptocurrency</p>
-          <div id="stepForm">
+            <div id="stepForm">
             <div class="deposit-form-row">
               <div class="deposit-form-field">
                 <label for="amount">Amount (USD)</label>
-                <input type="number" id="amount" min="1" max="10000" step="0.01" placeholder="10" required>
+                <input type="number" id="amount" min="1" max="10000" step="0.01" placeholder="10">
               </div>
               <div class="deposit-form-field">
                 <label>Cryptocurrency & network</label>
@@ -48,7 +48,7 @@
               </div>
               <div class="deposit-form-field deposit-form-finalize">
                 <label>&nbsp;</label>
-                <button type="button" class="btn btn-primary" id="finalizeBtn">Finalize</button>
+                <button type="button" class="btn btn-primary" id="confirmBtn">Confirm & get address</button>
               </div>
             </div>
             <div class="deposit-estimate" id="depositEstimate">
@@ -58,9 +58,7 @@
           <div id="stepPayment" style="display:none;">
             <div class="deposit-payment-box">
               <p class="deposit-summary-line">You will get balance <strong id="paymentBalanceAmt">$—</strong> after you deposit <strong id="paymentCryptoAmt">—</strong> in <strong id="paymentNetworkName">—</strong> network.</p>
-              <p class="deposit-amount-label">Pay exactly</p>
-              <p class="deposit-amount-value" id="payerAmount">—</p>
-              <p class="deposit-currency" id="payerCurrency">—</p>
+              <p class="deposit-amount-label">Deposit address</p>
               <div class="deposit-qr-wrap">
                 <img id="qrImg" src="" alt="QR code" class="deposit-qr">
               </div>
@@ -109,27 +107,24 @@
     const depositContent = document.getElementById('depositContent');
     const stepForm = document.getElementById('stepForm');
     const stepPayment = document.getElementById('stepPayment');
-    const amountInput = document.getElementById('amount');
     const cryptoDropdown = document.getElementById('cryptoDropdown');
     const cryptoDisplay = document.getElementById('cryptoDisplay');
     const cryptoDisplayText = document.getElementById('cryptoDisplayText');
     const cryptoGrid = document.getElementById('cryptoGrid');
-    const finalizeBtn = document.getElementById('finalizeBtn');
-    const payerAmountEl = document.getElementById('payerAmount');
-    const payerCurrencyEl = document.getElementById('payerCurrency');
+    const finalizeBtn = document.getElementById('confirmBtn');
     const qrImg = document.getElementById('qrImg');
     const depositAddress = document.getElementById('depositAddress');
     const copyAddrBtn = document.getElementById('copyAddr');
     const networkNameEl = document.getElementById('networkName');
     const newDepositBtn = document.getElementById('newDepositBtn');
     const depositHistoryBody = document.getElementById('depositHistoryBody');
-    const depositEstimateValue = document.getElementById('depositEstimateValue');
     const depositBalanceAmt = document.getElementById('depositBalanceAmt');
     const depositCryptoAmt = document.getElementById('depositCryptoAmt');
     const depositNetworkName = document.getElementById('depositNetworkName');
     const paymentBalanceAmt = document.getElementById('paymentBalanceAmt');
     const paymentCryptoAmt = document.getElementById('paymentCryptoAmt');
     const paymentNetworkName = document.getElementById('paymentNetworkName');
+    const amountInput = document.getElementById('amount');
 
     const params = new URLSearchParams(window.location.search);
     if (params.get('success') === '1') toast('Payment received! Your balance will be updated shortly. Check your email for confirmation.', 'success');
@@ -168,29 +163,39 @@
       if (!cryptoDropdown.contains(e.target)) cryptoDropdown.classList.remove('open');
     });
 
-    const COINGECKO_IDS = { USDT: 'tether', USDC: 'usd-coin', BTC: 'bitcoin', ETH: 'ethereum', TRX: 'tron' };
-    let rateCache = {};
-    let rateCacheTime = 0;
-    const RATE_CACHE_MS = 60000;
+    let calculateCache = {};
+    let calculateCacheTime = 0;
+    const CALCULATE_CACHE_MS = 60000;
 
-    async function fetchRates() {
-      if (Date.now() - rateCacheTime < RATE_CACHE_MS && Object.keys(rateCache).length) return rateCache;
+    /** Get crypto amount for a USD amount using formula: amount_in_crypto = usd / course */
+    async function fetchCryptoAmount(usdAmount, currency) {
+      const key = usdAmount + '|' + currency;
+      if (Date.now() - calculateCacheTime < CALCULATE_CACHE_MS && calculateCache[key] != null) return calculateCache[key];
       try {
-        const r = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tron,tether,usd-coin&vs_currencies=usd');
+        const r = await fetch('/api/deposit/calculate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to: currency, amount_usd: String(usdAmount) })
+        });
         const d = await r.json();
-        rateCache = {
-          USDT: 1, USDC: 1,
-          BTC: d.bitcoin?.usd || 0, ETH: d.ethereum?.usd || 0, TRX: d.tron?.usd || 0
-        };
-        rateCacheTime = Date.now();
-      } catch (e) { rateCache = { USDT: 1, USDC: 1, BTC: 0, ETH: 0, TRX: 0 }; }
-      return rateCache;
+        if (!r.ok) throw new Error(d.error || 'Calculate failed');
+        const amount = d.to != null ? parseFloat(d.to) : null;
+        if (amount != null && !Number.isNaN(amount)) {
+          calculateCache[key] = amount;
+          calculateCacheTime = Date.now();
+        }
+        return amount;
+      } catch (e) {
+        return null;
+      }
     }
 
     function formatCryptoAmount(amt, currency) {
       if (currency === 'USDT' || currency === 'USDC') return amt.toFixed(2);
       if (currency === 'BTC' && amt < 0.01) return amt.toFixed(8);
       if (currency === 'ETH' && amt < 0.01) return amt.toFixed(8);
+      if (currency === 'BNB' && amt < 0.01) return amt.toFixed(6);
+      if (currency === 'LTC' && amt < 0.01) return amt.toFixed(6);
       if (amt >= 1) return amt.toFixed(4);
       return amt.toFixed(6);
     }
@@ -215,14 +220,12 @@
       const networkLabel = networkDisplayName(opt?.label || network);
       depositBalanceAmt.textContent = '$' + amt.toFixed(2);
       depositNetworkName.textContent = networkLabel;
-      const rates = await fetchRates();
-      const rate = rates[currency];
-      if (!rate || rate <= 0) {
+      const cryptoAmt = await fetchCryptoAmount(amt, currency);
+      if (cryptoAmt != null) {
+        depositCryptoAmt.textContent = '~' + formatCryptoAmount(cryptoAmt, currency) + ' ' + currency;
+      } else {
         depositCryptoAmt.textContent = '~' + amt.toFixed(2) + ' ' + currency;
-        return;
       }
-      const cryptoAmt = amt / rate;
-      depositCryptoAmt.textContent = '~' + formatCryptoAmount(cryptoAmt, currency) + ' ' + currency;
     }
 
     amountInput.addEventListener('input', updateEstimate);
@@ -274,27 +277,31 @@
         return;
       }
       const [to_currency, network] = val.split('|');
+      const opt = cryptoOptions.find(o => o.currency === to_currency && o.network === network);
+      const networkLabel = networkDisplayName(opt?.label || network);
+      let amount_in_crypto = null;
+      try {
+        amount_in_crypto = await fetchCryptoAmount(amt, to_currency);
+      } catch (e) {}
       finalizeBtn.disabled = true;
       try {
         const r = await fetch('/api/deposit/create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ amount: amt, to_currency, network })
+          body: JSON.stringify({ amount_usd: amt, amount_in_crypto, to_currency, network })
         });
         const d = await r.json();
         if (!r.ok) {
-          toast(d.error || 'Failed to create payment', 'error');
+          toast(d.error || 'Failed to create deposit address', 'error');
           return;
         }
         stepForm.style.display = 'none';
         stepPayment.style.display = 'block';
-        paymentBalanceAmt.textContent = '$' + amt.toFixed(2);
-        paymentCryptoAmt.textContent = (d.payer_amount || '—') + ' ' + (d.payer_currency || d.network || '');
-        paymentNetworkName.textContent = networkDisplayName(cryptoOptions.find(o => o.currency === to_currency && o.network === network)?.label || d.network);
-        payerAmountEl.textContent = d.payer_amount || '—';
-        payerCurrencyEl.textContent = d.payer_currency || d.network || '—';
+        paymentBalanceAmt.textContent = '$' + (d.amount_usd ?? amt).toFixed(2);
+        paymentCryptoAmt.textContent = amount_in_crypto != null ? ('~' + formatCryptoAmount(amount_in_crypto, to_currency) + ' ' + to_currency) : (to_currency + ' ' + networkLabel);
+        paymentNetworkName.textContent = opt?.label || networkLabel || '—';
         depositAddress.textContent = d.address || '—';
-        networkNameEl.textContent = (cryptoOptions.find(o => o.currency === to_currency && o.network === network)?.label || d.payer_currency || d.network);
+        networkNameEl.textContent = opt?.label || to_currency || network || '—';
         if (d.address) {
           qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=' + encodeURIComponent(d.address);
           qrImg.style.display = '';

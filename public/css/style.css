@@ -731,7 +731,7 @@ body::before {
 .deposit-address {
   font-size: 0.8rem;
   word-break: break-all;
-  max-width: 280px;
+  max-width: 300px;
   padding: 0.5rem 0.75rem;
   background: var(--input-bg);
   border-radius: 6px;
