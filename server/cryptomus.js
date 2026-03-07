@@ -149,7 +149,15 @@ async function convertUsdToCryptoByRate(currency, usdAmount) {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
-      'Accept': 'application/json'
+      'Accept': 'application/json',
+      "User-Agent": "Mozilla/5.0",
+      "Accept": "application/json",
+      "Accept-Language": "en-US,en;q=0.9",
+      "Accept-Encoding": "gzip, deflate, br",
+      "Connection": "keep-alive",
+      "Referer": "https://www.cryptomus.com/",
+      "Origin": "https://www.cryptomus.com",
+      "Sec-Fetch-Dest": "empty",
     }
   });
   if (!res.ok) {
