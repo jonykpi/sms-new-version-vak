@@ -144,6 +144,7 @@ async function convertUsdToCryptoByRate(currency, usdAmount) {
   if (!Number.isFinite(amount) || amount < 0) throw new Error('Invalid USD amount');
 
   const url = `${API_BASE}/exchange-rate/${encodeURIComponent(cur)}/list`;
+  console.log(url);
   const res = await fetch(url, { method: 'GET' });
   if (!res.ok) {
     const errorBody = await res.text(); // or res.json()
