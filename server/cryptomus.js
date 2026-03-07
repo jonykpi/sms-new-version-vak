@@ -40,9 +40,18 @@ async function request(method, path, body = {}) {
   } catch {
     const snippet = text.slice(0, 200).replace(/\s+/g, ' ').trim();
     console.error('[Cryptomus] Non-JSON response:', res.status, res.statusText, 'Body:', snippet);
+    if (res.status === 403) {
+      try {
+        const ipRes = await fetch('https://api.ipify.org?format=json');
+        const ipData = await ipRes.json();
+        if (ipData && ipData.ip) {
+          console.error('[Cryptomus] Your server outbound IP is:', ipData.ip, '— add this IP to Cryptomus merchant IP whitelist.');
+        }
+      } catch (_) {}
+    }
     throw new Error(
       res.status === 401 ? 'Invalid Cryptomus API key or merchant ID' :
-      res.status === 403 ? 'Cryptomus access denied (check API key and IP)' :
+      res.status === 403 ? 'Cryptomus returned 403: add your server IP to the Cryptomus merchant IP whitelist in the Cryptomus dashboard.' :
       res.status >= 500 ? 'Cryptomus server error — try again later' :
       `Cryptomus API returned invalid response (${res.status}). Check CRYPTOMUS_API_KEY and CRYPTOMUS_MERCHANT_ID.`
     );

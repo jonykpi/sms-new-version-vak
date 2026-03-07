@@ -87,7 +87,12 @@ router.post('/create', requireAuth, requireVerified, async (req, res) => {
     });
   } catch (e) {
     console.error('Deposit create error:', e);
-    res.status(502).json({ error: e.message || 'Failed to create payment' });
+    const isCryptomus = e.message && (e.message.includes('Cryptomus') || e.message.includes('API key') || e.message.includes('IP'));
+    res.status(502).json({
+      error: isCryptomus
+        ? 'Payment provider is temporarily unavailable. Please try again later or contact support.'
+        : (e.message || 'Failed to create payment'),
+    });
   }
 });
 
