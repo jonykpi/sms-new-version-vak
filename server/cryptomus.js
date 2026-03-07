@@ -72,12 +72,16 @@ async function request(method, path, body = {}) {
       `Cryptomus API returned invalid response (${res.status}). Check CRYPTOMUS_API_KEY and CRYPTOMUS_MERCHANT_ID.`
     );
   }
-  if (data.state === 1) throw new Error(data.message || data.errors ? JSON.stringify(data.errors) : 'Cryptomus API error');
+  if (data.state === 1) {
+    const msg = data.message || (data.errors ? JSON.stringify(data.errors) : null) || 'Cryptomus API error';
+    console.error('[Cryptomus] API error response:', JSON.stringify(data));
+    throw new Error(msg);
+  }
   return data.result || data;
 }
 
 /**
- * Create payment invoice
+ * Create payment invoice (fixed amount)
  * @param {Object} opts - amount (USD string), order_id, to_currency (e.g. USDT), network (e.g. tron), url_callback
  */
 async function createPayment(opts) {
@@ -96,4 +100,18 @@ async function createPayment(opts) {
   });
 }
 
-module.exports = { createPayment, signBody };
+/**
+ * Create static wallet (any amount to one address) — same as PHP createWallet
+ * @param {Object} opts - currency (e.g. USDT), network (e.g. tron), order_id, url_callback
+ */
+async function createWallet(opts) {
+  const { currency, network, order_id, url_callback } = opts;
+  return request('POST', '/wallet', {
+    currency: currency || undefined,
+    network: network || undefined,
+    order_id: String(order_id),
+    url_callback: url_callback || undefined,
+  });
+}
+
+module.exports = { createPayment, createWallet, signBody };
