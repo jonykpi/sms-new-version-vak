@@ -4,7 +4,8 @@
   "description": "SMS activation service - text2fa.com (VAK-SMS reseller)",
   "main": "server/index.js",
   "scripts": {
-    "start": "node server/index.js",
+    "start": "node server/cluster.js",
+    "start:single": "node server/index.js",
     "dev": "node --watch server/index.js",
     "init-db": "node server/init-db.js",
     "download-country-icons": "node scripts/download-country-icons.js",
