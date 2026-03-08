@@ -98,7 +98,39 @@ async function request(method, path, body = {}) {
   return data.result || data;
 }
 
-/** V2 user-api request: sign = md5(base64_encode(json_body) . API_KEY), header userId = merchant UUID */
+/** GET v1 exchange-rate list: GET /v1/exchange-rate/{currency}/list. Returns array of { from, to, course }. */
+async function getExchangeRateList(currency) {
+  const cur = String(currency || '').toUpperCase();
+  if (!cur) throw new Error('Currency is required');
+  const path = `/exchange-rate/${cur}/list`;
+  const bodyStr = '';
+  const { apiKey, merchantId } = getConfig();
+  const sign = signBody(bodyStr, apiKey);
+  const res = await fetch(API_BASE + path, {
+    method: 'GET',
+    headers: {
+      'merchant': merchantId,
+      'sign': sign,
+      'Content-Type': 'application/json',
+    },
+  });
+  const text = await res.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    const snippet = text.slice(0, 200).replace(/\s+/g, ' ').trim();
+    console.error('[Cryptomus] exchange-rate list Non-JSON:', res.status, res.statusText, 'Body:', snippet);
+    if (res.status === 403) await logOutboundIpHint('[Cryptomus]');
+    throw new Error(`Cryptomus exchange-rate API error (${res.status})`);
+  }
+  if (data.state === 1) {
+    const msg = data.message || (data.errors ? JSON.stringify(data.errors) : null) || 'Cryptomus API error';
+    throw new Error(msg);
+  }
+  const list = data.result || data;
+  return Array.isArray(list) ? list : [];
+}
 async function requestV2(method, path, body = {}) {
   const { apiKey, merchantId } = getConfig();
   const bodyStr = typeof body === 'string' ? body : (Object.keys(body).length ? JSON.stringify(body) : '');
@@ -128,6 +160,18 @@ async function requestV2(method, path, body = {}) {
     throw new Error(msg);
   }
   return data.result || data;
+}
+
+/**
+ * Parse crypto amount from Cryptomus convert/calculate response.
+ * API returns string numbers in to, to_amount, or total_amount.
+ */
+function parseCryptoAmount(result) {
+  if (result == null) return NaN;
+  const raw = result.to ?? result.to_amount ?? result.total_amount ?? result.amount;
+  if (raw === undefined || raw === null) return NaN;
+  const n = Number(typeof raw === 'string' ? raw.replace(/\s/g, '') : raw);
+  return Number.isFinite(n) ? n : NaN;
 }
 
 /**
@@ -162,8 +206,9 @@ async function calculateWithRetry(opts, attempts = 3) {
 
 
 /**
- * Convert USD to crypto using exchange rate formula:
- * amount_in_crypto = usd_amount / course, where course is "<currency> -> USD".
+ * Convert USD to crypto using v1 exchange-rate list API.
+ * GET /v1/exchange-rate/{currency}/list → find rate to USD, then amount_crypto = usdAmount / course.
+ * (from = always USD, to = selected currency)
  */
 async function convertUsdToCryptoByRate(currency, usdAmount) {
   const cur = String(currency || '').toUpperCase();
@@ -171,21 +216,26 @@ async function convertUsdToCryptoByRate(currency, usdAmount) {
   if (!cur) throw new Error('Currency is required');
   if (!Number.isFinite(amount) || amount < 0) throw new Error('Invalid USD amount');
 
-  // Use authenticated API only; public exchange-rate endpoint is often blocked by Cloudflare.
   try {
-    const oneUsd = await calculateWithRetry({ to: cur, from_amount: '1' }, 3);
-    const oneUsdInCrypto = Number(oneUsd?.to ?? oneUsd?.to_amount ?? oneUsd?.amount);
-    if (!Number.isFinite(oneUsdInCrypto) || oneUsdInCrypto <= 0) {
-      throw new Error(`Failed to convert USD to ${cur}`);
+    const list = await getExchangeRateList(cur);
+    const usdRate = list.find((r) => String(r?.to || '').toUpperCase() === 'USD');
+    if (!usdRate || usdRate.course == null) {
+      throw new Error(`No USD rate found for ${cur}`);
     }
-    const course = 1 / oneUsdInCrypto;
+    const course = Number(String(usdRate.course).replace(/\s/g, ''));
+    if (!Number.isFinite(course) || course <= 0) {
+      throw new Error(`Invalid rate for ${cur} -> USD`);
+    }
+    // course = USD per 1 unit of crypto → amount_crypto = usdAmount / course
+    const cryptoAmount = amount / course;
+    const oneUsdInCrypto = 1 / course;
     const cached = { course, oneUsdInCrypto, updatedAt: Date.now() };
     conversionCache.set(cur, cached);
     lastConnectivityError = null;
     return {
       currency: cur,
       course,
-      amount: amount * oneUsdInCrypto,
+      amount: cryptoAmount,
       cached: false,
     };
   } catch (e) {

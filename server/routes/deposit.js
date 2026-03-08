@@ -48,6 +48,7 @@ router.post('/calculate', async (req, res) => {
     return res.json({
       from: 'USD',
       to: result.amount,
+      amount_in_crypto: result.amount,
       currency: result.currency,
       course: result.course,
       amount_usd: usdAmount,
