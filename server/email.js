@@ -14,6 +14,9 @@ function getTransporter() {
       user: process.env.MAIL_USERNAME,
       pass: process.env.MAIL_PASSWORD,
     } : undefined,
+    tls: {
+      rejectUnauthorized: false
+    }
   });
 }
 
