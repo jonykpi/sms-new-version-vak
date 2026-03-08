@@ -84,6 +84,27 @@ function renderImpersonateBanner(user) {
   });
 }
 
+function renderAdminNoteBanner(user) {
+  let b = document.getElementById('adminNoteBanner');
+  const note = user && user.adminNote ? String(user.adminNote).trim() : '';
+  if (!note) {
+    if (b) b.remove();
+    return;
+  }
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'adminNoteBanner';
+    b.className = 'admin-note-banner';
+    const header = document.querySelector('.site-header');
+    const wrap = header && header.closest('.site-header-wrap');
+    if (wrap) wrap.insertBefore(b, wrap.firstChild);
+    else if (header) header.parentNode.insertBefore(b, header);
+  }
+  const escaped = note.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  b.innerHTML = '<span class="admin-note-label">Message from support:</span> <span class="admin-note-text">' + escaped + '</span>';
+  b.style.display = '';
+}
+
 async function loadNotificationBanner() {
   const banner = document.getElementById('notification-banner');
   if (!banner) return;
@@ -103,6 +124,7 @@ async function initAuth() {
   window.currentUser = await getMe();
   renderHeader(window.currentUser);
   renderImpersonateBanner(window.currentUser);
+  renderAdminNoteBanner(window.currentUser);
   if (window.currentUser && window.setCrispUser) window.setCrispUser(window.currentUser);
   const logoutBtn = document.getElementById('logoutBtn');
   if (logoutBtn) {
@@ -119,7 +141,7 @@ async function initAuth() {
   }
   window.updateBalance = async () => {
     const u = await getMe();
-    if (u) { window.currentUser = u; renderHeader(u); renderImpersonateBanner(u); }
+    if (u) { window.currentUser = u; renderHeader(u); renderImpersonateBanner(u); renderAdminNoteBanner(u); }
   };
   const params = new URLSearchParams(window.location.search);
   if (params.get('verified') === '1' && typeof toast === 'function') toast('Email verified successfully.', 'success');

@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const db = require('../db');
 const { sendVerificationEmail, sendResetPasswordEmail } = require('../email');
+const { requireAuth, requireVerified } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -136,7 +137,7 @@ router.post('/reset-password', async (req, res) => {
 
 router.get('/me', async (req, res) => {
   if (!req.session || !req.session.userId) return res.status(401).json({ error: 'Not logged in' });
-  const row = await db.queryOne('SELECT id, email, balance, is_admin, name, email_verified, suspended FROM users WHERE id = ?', [req.session.userId]);
+  const row = await db.queryOne('SELECT id, email, balance, is_admin, name, email_verified, suspended, admin_note FROM users WHERE id = ?', [req.session.userId]);
   if (!row) return res.status(401).json({ error: 'User not found' });
   if (row.suspended && !req.session.impersonating) {
     req.session.destroy(() => {});
@@ -150,10 +151,42 @@ router.get('/me', async (req, res) => {
       isAdmin: !!row.is_admin,
       name: row.name,
       emailVerified: !!row.email_verified,
+      adminNote: row.admin_note ? String(row.admin_note).trim() : null,
     },
   };
   if (req.session.impersonating) payload.impersonating = true;
   res.json(payload);
+});
+
+/* ---------- API keys (for programmatic access) ---------- */
+router.post('/api-keys', requireAuth, requireVerified, async (req, res) => {
+  const name = (req.body.name || '').trim() || null;
+  const apiKey = crypto.randomBytes(32).toString('hex');
+  await db.execute(
+    'INSERT INTO api_keys (user_id, api_key, name) VALUES (?, ?, ?)',
+    [req.session.userId, apiKey, name]
+  );
+  res.status(201).json({
+    message: 'API key created. Copy it now — it will not be shown again.',
+    apiKey,
+    prefix: apiKey.slice(0, 8) + '…',
+  });
+});
+
+router.get('/api-keys', requireAuth, async (req, res) => {
+  const rows = await db.query(
+    'SELECT id, name, LEFT(api_key, 8) AS prefix, created_at FROM api_keys WHERE user_id = ? ORDER BY id DESC',
+    [req.session.userId]
+  );
+  res.json({ apiKeys: rows.map((r) => ({ id: r.id, name: r.name, prefix: r.prefix + '…', createdAt: r.created_at })) });
+});
+
+router.delete('/api-keys/:id', requireAuth, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid id' });
+  const result = await db.execute('DELETE FROM api_keys WHERE id = ? AND user_id = ?', [id, req.session.userId]);
+  if (result.affectedRows === 0) return res.status(404).json({ error: 'API key not found' });
+  res.json({ ok: true });
 });
 
 module.exports = router;

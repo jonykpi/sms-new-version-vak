@@ -6,16 +6,22 @@ const session = require('express-session');
 const MySQLStore = require('express-mysql-session')(session);
 
 const WEBSITE_NAME = process.env.WEBSITE_NAME || 'text2fa.com';
+const APP_URL = (process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/$/, '');
 
 function sendHtmlWithSiteName(res, filePath) {
   const html = fs.readFileSync(filePath, 'utf8');
-  res.send(html.replace(/\{\{WEBSITE_NAME\}\}/g, WEBSITE_NAME));
+  res.send(
+    html
+      .replace(/\{\{WEBSITE_NAME\}\}/g, WEBSITE_NAME)
+      .replace(/\{\{APP_URL\}\}/g, APP_URL)
+  );
 }
 const cookieParser = require('cookie-parser');
 const { maintenanceMiddleware } = require('./middleware/maintenance');
 
 const authRoutes = require('./routes/auth');
 const apiRoutes = require('./routes/api');
+const apiV1Routes = require('./routes/api-v1');
 const adminRoutes = require('./routes/admin');
 const depositRoutes = require('./routes/deposit');
 
@@ -58,6 +64,7 @@ app.use(maintenanceMiddleware);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/deposit', depositRoutes);
+app.use('/api/v1', apiV1Routes);
 app.use('/api', apiRoutes);
 app.use('/api/admin', adminRoutes);
 
@@ -84,6 +91,7 @@ app.get('/forgot-password', (req, res) => sendHtmlWithSiteName(res, path.join(pu
 app.get('/reset-password', (req, res) => sendHtmlWithSiteName(res, path.join(publicDir, 'reset-password.html')));
 app.get('/active', (req, res) => sendHtmlWithSiteName(res, path.join(publicDir, 'active.html')));
 app.get('/topup', (req, res) => sendHtmlWithSiteName(res, path.join(publicDir, 'topup.html')));
+app.get('/api-docs', (req, res) => sendHtmlWithSiteName(res, path.join(publicDir, 'api-docs.html')));
 app.get('/admin', (req, res) => sendHtmlWithSiteName(res, path.join(publicDir, 'admin', 'index.html')));
 
 function start() {

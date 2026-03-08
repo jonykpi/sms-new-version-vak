@@ -70,6 +70,16 @@ async function init() {
       expires INT UNSIGNED NOT NULL,
       data MEDIUMTEXT
     )`,
+    `CREATE TABLE IF NOT EXISTS api_keys (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      api_key VARCHAR(64) NOT NULL,
+      name VARCHAR(128),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY (api_key),
+      KEY (user_id),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`,
     `INSERT IGNORE INTO settings (\`key\`, value) VALUES ('rub_to_usd', '0.011')`,
     `INSERT IGNORE INTO settings (\`key\`, value) VALUES ('commission_percent', '5')`,
     `INSERT IGNORE INTO settings (\`key\`, value) VALUES ('cache_ttl_minutes', '5')`,
@@ -97,6 +107,7 @@ async function init() {
     ['users', 'reset_token_expires', 'TIMESTAMP NULL'],
     ['users', 'suspended', 'TINYINT(1) NOT NULL DEFAULT 0'],
     ['deposits', 'deposit_url', 'VARCHAR(512)'],
+    ['users', 'admin_note', 'TEXT'],
   ];
   for (const [table, col, def] of alterColumns) {
     try {
@@ -111,7 +122,7 @@ async function init() {
   } catch (e) {}
 
   await conn.end();
-  console.log('MySQL database initialized. Tables: users, settings, activations, balance_log, sessions');
+  console.log('MySQL database initialized. Tables: users, settings, activations, balance_log, sessions, api_keys');
 }
 
 init().catch((e) => {

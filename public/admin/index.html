@@ -101,8 +101,8 @@
             </div>
             <div class="table-wrap">
               <table class="users-table">
-                <thead><tr><th>ID</th><th>Email</th><th>Balance ($)</th><th>Admin</th><th>Status</th><th>Actions</th></tr></thead>
-                <tbody id="usersBody"><tr><td colspan="6">Loading…</td></tr></tbody>
+                <thead><tr><th>ID</th><th>Email</th><th>Balance ($)</th><th>Admin</th><th>Status</th><th>Note</th><th>Actions</th></tr></thead>
+                <tbody id="usersBody"><tr><td colspan="7">Loading…</td></tr></tbody>
               </table>
             </div>
             <div class="admin-pagination" id="usersPagination"></div>
@@ -262,15 +262,35 @@
         const status = suspended ? '<span style="color:var(--danger)">Suspended</span>' : 'Active';
         const suspendBtn = u.is_admin ? '' : '<button type="button" class="btn btn-outline btn-sm" data-suspend="' + u.id + '">' + (suspended ? 'Unsuspend' : 'Suspend') + '</button>';
         const impersonateBtn = u.is_admin ? '' : '<button type="button" class="btn btn-impersonate btn-get" data-impersonate="' + u.id + '">Impersonate</button>';
-        return '<tr><td>' + u.id + '</td><td>' + u.email + '</td><td>$' + Number(u.balance).toFixed(2) + '</td><td>' + (u.is_admin ? 'Yes' : '') + '</td><td>' + status + '</td><td>' + suspendBtn + ' ' + impersonateBtn + '</td></tr>';
-      }).join('') || '<tr><td colspan="6">No users</td></tr>';
+        const noteText = (u.admin_note || '').trim();
+        const noteEsc = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const noteDisplay = noteText ? ('<span class="admin-note-preview" title="' + noteEsc(noteText) + '">' + (noteText.length > 40 ? noteText.slice(0, 40) + '…' : noteText) + '</span>') : '—';
+        const noteBtn = '<button type="button" class="btn btn-outline btn-sm" data-note="' + u.id + '" data-current-note="' + noteEsc(noteText.slice(0, 500)) + '">Note</button>';
+        return '<tr><td>' + u.id + '</td><td>' + u.email + '</td><td>$' + Number(u.balance).toFixed(2) + '</td><td>' + (u.is_admin ? 'Yes' : '') + '</td><td>' + status + '</td><td class="note-cell">' + noteDisplay + ' ' + noteBtn + '</td><td>' + suspendBtn + ' ' + impersonateBtn + '</td></tr>';
+      }).join('') || '<tr><td colspan="7">No users</td></tr>';
       document.getElementById('usersBody').querySelectorAll('[data-suspend]').forEach(btn => {
         btn.addEventListener('click', () => suspendUser(btn.dataset.suspend));
       });
       document.getElementById('usersBody').querySelectorAll('[data-impersonate]').forEach(btn => {
         btn.addEventListener('click', () => impersonateUser(btn.dataset.impersonate));
       });
+      document.getElementById('usersBody').querySelectorAll('[data-note]').forEach(btn => {
+        btn.addEventListener('click', () => setUserNote(btn.dataset.note, btn.dataset.currentNote || ''));
+      });
       renderPagination('usersPagination', usersPage, totalPages, (p) => { usersPage = p; loadUsers(); });
+    }
+
+    async function setUserNote(userId, currentNote) {
+      const note = window.prompt('Note shown to this user (banner at top of page). Leave empty to clear.', currentNote || '');
+      if (note === null) return;
+      const r = await fetch('/api/admin/users/' + userId + '/note', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: note.trim() })
+      });
+      const d = await r.json();
+      toast(r.ok ? 'Note saved. User will see it when logged in.' : (d.error || 'Error'), r.ok ? 'success' : 'error');
+      if (r.ok) loadUsers();
     }
 
     async function impersonateUser(userId) {

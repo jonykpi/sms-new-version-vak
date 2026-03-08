@@ -80,7 +80,7 @@ router.get('/users', requireAdmin, async (req, res) => {
   const [countRow] = await db.query('SELECT COUNT(*) as n FROM users' + where, params);
   const total = countRow?.n || 0;
   const rows = await db.query(
-    'SELECT id, email, balance, is_admin, suspended, created_at FROM users' + where + ' ORDER BY id LIMIT ' + limit + ' OFFSET ' + offset,
+    'SELECT id, email, balance, is_admin, suspended, admin_note, created_at FROM users' + where + ' ORDER BY id LIMIT ' + limit + ' OFFSET ' + offset,
     params
   );
   res.json({ users: rows, total, page, limit, totalPages: Math.ceil(total / limit) });
@@ -109,6 +109,16 @@ router.post('/users/:id/balance', requireAdmin, async (req, res) => {
   ]);
   const row = await db.queryOne('SELECT id, email, balance FROM users WHERE id = ?', [userId]);
   res.json({ user: row });
+});
+
+router.post('/users/:id/note', requireAdmin, async (req, res) => {
+  const userId = Number(req.params.id);
+  const note = req.body.note != null ? String(req.body.note).trim().slice(0, 2000) : '';
+  const user = await db.queryOne('SELECT id FROM users WHERE id = ?', [userId]);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  await db.execute('UPDATE users SET admin_note = ? WHERE id = ?', [note || null, userId]);
+  const row = await db.queryOne('SELECT id, email, admin_note FROM users WHERE id = ?', [userId]);
+  res.json({ user: { id: row.id, email: row.email, admin_note: row.admin_note } });
 });
 
 router.get('/deposits', requireAdmin, async (req, res) => {

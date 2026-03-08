@@ -6,6 +6,10 @@ const { requireAuth, requireVerified } = require('../middleware/auth');
 
 const router = express.Router();
 
+function getBaseUrl() {
+  return (process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/$/, '');
+}
+
 async function getSettings() {
   const rows = await db.query('SELECT `key`, value FROM settings');
   const s = {};
@@ -76,8 +80,13 @@ function normalizeCountryList(raw) {
   });
 }
 
-/** Normalize getCountryOperatorList response: { AO: [{ name, icon, count, operators }], ... } -> array with local icon paths */
-function normalizeCountryOperatorList(raw) {
+/** Normalize getCountryOperatorList response: { AO: [{ name, icon, count, operators }], ... } -> array with full icon URLs */
+function normalizeCountryOperatorList(raw, baseUrl) {
+  const base = baseUrl || getBaseUrl();
+  function fullUrl(path) {
+    if (!path || typeof path !== 'string') return undefined;
+    return path.startsWith('http') ? path : (base + (path.startsWith('/') ? path : '/' + path));
+  }
   const DISPLAY_NAMES = {
     us: 'United States',
     usv: 'United States virtual',
@@ -87,7 +96,8 @@ function normalizeCountryOperatorList(raw) {
   function localOperatorIcon(iconPath) {
     if (!iconPath || typeof iconPath !== 'string') return undefined;
     const filename = iconPath.split('/').pop();
-    return filename ? '/assets/operator/' + filename : undefined;
+    const path = filename ? '/assets/operator/' + filename : undefined;
+    return path ? fullUrl(path) : undefined;
   }
   const obj = raw && typeof raw === 'object' ? raw : {};
   return Object.entries(obj).map(([codeKey, arr]) => {
@@ -106,7 +116,7 @@ function normalizeCountryOperatorList(raw) {
     let icon = null;
     if (entry.icon && typeof entry.icon === 'string') {
       const filename = entry.icon.split('/').pop() || '';
-      if (filename) icon = '/assets/country/' + filename;
+      if (filename) icon = fullUrl('/assets/country/' + filename);
     }
     return {
       countryCode: codeLower,
@@ -133,13 +143,18 @@ router.get('/countries', async (req, res) => {
     const cacheKey = 'countries';
     const cached = cache.get(cacheKey);
     if (cached) return res.json(cached);
+    const baseUrl = getBaseUrl();
     let data;
     try {
       const raw = await vak.getCountryOperatorList();
-      data = normalizeCountryOperatorList(raw);
+      data = normalizeCountryOperatorList(raw, baseUrl);
     } catch (e) {
       const raw = await vak.getCountryList();
       data = normalizeCountryList(raw);
+      data = (data || []).map((c) => ({
+        ...c,
+        icon: baseUrl + '/assets/country/' + (c.countryCode || c.country || '').toLowerCase() + '.png',
+      }));
     }
     cache.set(cacheKey, data, ttl);
     res.json(data);
@@ -148,9 +163,100 @@ router.get('/countries', async (req, res) => {
   }
 });
 
-router.get('/services', (req, res) => {
+router.get('/services', async (req, res) => {
+  const baseUrl = getBaseUrl();
+  const country = (req.query.country || '').trim().toLowerCase();
+  const operator = (req.query.operator || '').trim();
   const services = require('../services-list.json');
-  res.json(services);
+  const list = (services || []).map((s) => ({
+    code: s.code,
+    name: s.name,
+    icon: baseUrl + '/assets/service/' + (s.code || '') + '.png',
+  }));
+
+  if (!country) {
+    return res.json(list);
+  }
+
+  try {
+    const settings = await getSettings();
+    const ttl = Math.min(2, Number(settings.cache_ttl_minutes) || 5);
+    const cacheKey = `services:${country}:${operator || 'any'}`;
+    const cached = cache.get(cacheKey);
+    if (cached) return res.json(cached);
+
+    const filtered = [];
+    for (const s of list) {
+      try {
+        const { count, priceRub } = await vak.getCountNumber(s.code, country, operator || '');
+        if (count > 0) {
+          const priceUsd = priceRub != null ? rubToUsd(priceRub, settings) : null;
+          filtered.push({ ...s, count, priceUsd });
+        }
+      } catch (_) {
+        /* skip service if not available */
+      }
+    }
+    cache.set(cacheKey, filtered, ttl);
+    res.json(filtered);
+  } catch (e) {
+    res.status(502).json({ error: e.message || 'Service temporarily unavailable. Please try again later.' });
+  }
+});
+
+/** Operators by country — same data as /countries, response shape focused on operators list; full icon URLs */
+router.get('/operators', async (req, res) => {
+  try {
+    const settings = await getSettings();
+    const ttl = Number(settings.cache_ttl_minutes) || 5;
+    const cacheKey = 'operators';
+    const cached = cache.get(cacheKey);
+    if (cached) return res.json(cached);
+    const baseUrl = getBaseUrl();
+    let data;
+    try {
+      const raw = await vak.getCountryOperatorList();
+      data = normalizeCountryOperatorList(raw, baseUrl);
+    } catch (e) {
+      const raw = await vak.getCountryList();
+      data = normalizeCountryList(raw);
+      data = (data || []).map((c) => {
+        const code = (c.countryCode || c.country || '').toLowerCase();
+        const ops = c.operatorList || [];
+        const operatorList = ops.map((op) => {
+          const id = typeof op === 'object' && op && op.id != null ? op.id : op;
+          const name = typeof op === 'object' && op && op.name != null ? op.name : id;
+          return {
+            id: id,
+            name: name,
+            icon: id && id !== 'any' ? baseUrl + '/assets/operator/' + id + '.png' : undefined,
+          };
+        });
+        return {
+          ...c,
+          icon: baseUrl + '/assets/country/' + code + '.png',
+          operatorList,
+        };
+      });
+    }
+    const operatorsResponse = {
+      countries: (data || []).map((c) => ({
+        countryCode: c.countryCode || c.country,
+        countryName: c.countryName || c.countryCode || '',
+        count: c.count,
+        operators: (c.operatorList || []).map((op) => ({
+          id: op.id || op,
+          name: op.name || (typeof op === 'string' ? op : ''),
+          icon: op.icon,
+        })),
+        icon: c.icon,
+      })),
+    };
+    cache.set(cacheKey, operatorsResponse, ttl);
+    res.json(operatorsResponse);
+  } catch (e) {
+    res.status(502).json({ error: e.message || 'Service temporarily unavailable. Please try again later.' });
+  }
 });
 
 router.get('/notification', async (req, res) => {

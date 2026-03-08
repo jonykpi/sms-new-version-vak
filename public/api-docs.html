@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="API documentation for {{WEBSITE_NAME}} — SMS activation service. Generate an API key and integrate programmatically.">
+  <title>API Documentation — {{WEBSITE_NAME}}</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .api-docs { max-width: 900px; margin: 0 auto; padding: 1.5rem; }
+    .api-docs h1 { font-size: 1.75rem; margin-bottom: 0.5rem; }
+    .api-docs .subtitle { color: var(--text-muted); margin-bottom: 2rem; }
+    .api-docs h2 { font-size: 1.25rem; margin-top: 2rem; margin-bottom: 0.75rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; }
+    .api-docs h3 { font-size: 1.05rem; margin-top: 1.25rem; margin-bottom: 0.5rem; }
+    .api-docs p { margin: 0.5rem 0; line-height: 1.5; }
+    .api-docs code, .api-docs pre { background: var(--input-bg); border-radius: 6px; padding: 0.2em 0.4em; font-size: 0.9em; }
+    .api-docs pre { padding: 1rem; overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
+    .api-docs table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    .api-docs th, .api-docs td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); }
+    .api-docs th { color: var(--text-muted); font-weight: 600; }
+    .api-docs .method-get { color: #22c55e; }
+    .api-docs .method-post { color: #f59e0b; }
+    .api-docs .method-delete { color: var(--danger); }
+    .api-docs .endpoint-block { margin: 1.5rem 0; padding: 1rem; background: var(--input-bg); border-radius: 8px; border: 1px solid var(--border); }
+    .api-docs .endpoint-block h4 { margin: 0 0 0.5rem 0; font-size: 1rem; }
+    .api-docs .endpoint-block .req-res { margin-top: 0.5rem; }
+    .api-docs .endpoint-block .req-res strong { display: block; margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-muted); }
+    .api-docs .endpoint-block pre { margin: 0.25rem 0 0 0; }
+    .api-keys-box { background: var(--gradient-card); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; margin-top: 1.5rem; }
+    .api-keys-box h3 { margin-top: 0; }
+    .api-key-row { display: flex; align-items: center; gap: 1rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); }
+    .api-key-row:last-child { border-bottom: none; }
+    .api-key-prefix { font-family: monospace; color: var(--text-muted); }
+    .api-key-created { font-size: 0.85rem; color: var(--text-muted); }
+    .api-key-new { margin-top: 1rem; }
+    .api-key-reveal { margin-top: 0.75rem; padding: 0.75rem; background: rgba(34, 211, 238, 0.1); border-radius: 8px; word-break: break-all; font-family: monospace; font-size: 0.9rem; }
+    .api-docs .btn { margin-right: 0.5rem; margin-top: 0.25rem; }
+  </style>
+</head>
+<body data-active-nav="api-docs">
+  <div id="header-placeholder"></div>
+  <div class="main-wrap">
+    <div id="sidebar-placeholder"></div>
+    <main class="content">
+      <div class="api-docs">
+        <h1>API Documentation</h1>
+        <p class="subtitle">Use the {{WEBSITE_NAME}} API to get phone numbers, receive SMS codes, and manage activations from your application.</p>
+
+        <h2>1. Authentication</h2>
+        <p>All API requests (except public reference data) require an <strong>API key</strong>. Generate one in the section below when logged in.</p>
+        <p>Send your API key in one of two ways:</p>
+        <ul>
+          <li><strong>Header:</strong> <code>X-API-Key: your_api_key_here</code></li>
+          <li><strong>Header:</strong> <code>Authorization: Bearer your_api_key_here</code></li>
+        </ul>
+        <p>Example:</p>
+        <pre>curl -H "X-API-Key: YOUR_KEY" "{{APP_URL}}/api/v1/balance"</pre>
+
+        <h2>2. Manage API keys</h2>
+        <div id="apiKeysSection">
+          <p id="apiKeysLoginHint">Log in to generate and manage API keys. <a href="/login">Log in</a></p>
+          <div id="apiKeysBox" class="api-keys-box" style="display:none;">
+            <h3>Your API keys</h3>
+            <p>Create a key and copy it immediately — it won't be shown again.</p>
+            <div id="apiKeysList"></div>
+            <div class="api-key-new">
+              <label for="apiKeyName">Name (optional)</label>
+              <input type="text" id="apiKeyName" placeholder="e.g. Production" style="margin-left: 0.5rem; padding: 0.35rem 0.5rem; border-radius: 6px; border: 1px solid var(--border); background: var(--input-bg); color: var(--text); max-width: 200px;">
+              <button type="button" class="btn btn-primary" id="apiKeyCreate">Generate API key</button>
+            </div>
+            <div id="apiKeyReveal" class="api-key-reveal" style="display:none;">
+              <strong>Your new API key (copy now):</strong>
+              <div id="apiKeyValue" style="margin-top: 0.5rem;"></div>
+              <button type="button" class="btn btn-sm btn-outline" id="apiKeyCopy">Copy</button>
+            </div>
+          </div>
+        </div>
+
+        <h2>3. Base URL</h2>
+        <p>Authenticated API base:</p>
+        <pre id="apiBaseUrl">{{APP_URL}}/api/v1</pre>
+        <p>Replace with your actual domain if different (from <code>APP_URL</code> in .env).</p>
+
+        <h2>4. Authenticated endpoints (require API key)</h2>
+        <table>
+          <thead>
+            <tr><th>Method</th><th>Path</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="method-get">GET</td><td><code>/balance</code></td><td>Get your account balance (USD).</td></tr>
+            <tr><td class="method-post">POST</td><td><code>/get-number</code></td><td>Order a phone number. Body: <code>service</code>, <code>country</code> (default: usv), <code>operator</code>, <code>rent</code> (boolean).</td></tr>
+            <tr><td class="method-get">GET</td><td><code>/activations</code></td><td>List your activations (phone numbers ordered).</td></tr>
+            <tr><td class="method-get">GET</td><td><code>/activation/:id/status</code></td><td>Get status and SMS code(s) for an activation. Poll until <code>status</code> is <code>got_sms</code>.</td></tr>
+            <tr><td class="method-post">POST</td><td><code>/activation/:id/status</code></td><td>Update status. Body: <code>action</code> = <code>send</code> (request more SMS), <code>end</code> (cancel, refund), <code>bad</code> (number bad, refund).</td></tr>
+            <tr><td class="method-post">POST</td><td><code>/activation/:id/cancel</code></td><td>Cancel activation and refund (only if SMS not received yet).</td></tr>
+            <tr><td class="method-post">POST</td><td><code>/activation/:id/banned</code></td><td>Report number as banned/bad and refund (only if SMS not received yet).</td></tr>
+            <tr><td class="method-post">POST</td><td><code>/activation/:id/reuse</code></td><td>Reuse / extend number after expiry (same price; number waits for SMS again).</td></tr>
+            <tr><td class="method-post">POST</td><td><code>/activation/:id/prolong</code></td><td>Same as <code>/reuse</code> — extend number after expiry.</td></tr>
+          </tbody>
+        </table>
+
+        <h2>5. Public endpoints (no API key)</h2>
+        <p>Use these to get services, countries, and operators. Base URL: <code>/api</code> (no <code>/v1</code>). All icon fields are full URLs (use <code>APP_URL</code> from .env).</p>
+        <table>
+          <thead>
+            <tr><th>Method</th><th>Path</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="method-get">GET</td><td><code>/api/services</code></td><td>All services with <code>code</code>, <code>name</code>, <code>icon</code>. Optional: <code>?country=usv</code> and <code>&amp;operator=</code> to return only services available in that country/operator (each item includes <code>count</code>, <code>priceUsd</code>).</td></tr>
+            <tr><td class="method-get">GET</td><td><code>/api/countries</code></td><td>Countries with <code>countryCode</code>, <code>countryName</code>, <code>operatorList</code>, <code>count</code>, <code>icon</code> (full URL).</td></tr>
+            <tr><td class="method-get">GET</td><td><code>/api/operators</code></td><td>Operators by country; each country and operator has <code>icon</code> (full URL).</td></tr>
+            <tr><td class="method-get">GET</td><td><code>/api/price/:service</code></td><td>Price for a service. Query: <code>country</code>, <code>operator</code>. Returns <code>count</code>, <code>priceUsd</code>.</td></tr>
+          </tbody>
+        </table>
+
+        <h2>6. Request &amp; response examples (per endpoint)</h2>
+
+        <h3>Public</h3>
+        <div class="endpoint-block">
+          <h4>GET /api/services</h4>
+          <div class="req-res"><strong>Request (all services)</strong><pre>GET {{APP_URL}}/api/services</pre></div>
+          <div class="req-res"><strong>Response</strong><pre>[
+  { "code": "wa", "name": "WhatsApp", "icon": "{{APP_URL}}/assets/service/wa.png" },
+  { "code": "gl", "name": "Google", "icon": "{{APP_URL}}/assets/service/gl.png" }
+]</pre></div>
+          <div class="req-res"><strong>Request (filter by country and operator)</strong><pre>GET {{APP_URL}}/api/services?country=usv&amp;operator=</pre></div>
+          <div class="req-res"><strong>Response</strong><pre>[
+  { "code": "wa", "name": "WhatsApp", "icon": "{{APP_URL}}/assets/service/wa.png", "count": 42, "priceUsd": 0.15 },
+  { "code": "gl", "name": "Google", "icon": "{{APP_URL}}/assets/service/gl.png", "count": 10, "priceUsd": 0.12 }
+]</pre></div>
+        </div>
+        <div class="endpoint-block">
+          <h4>GET /api/countries</h4>
+          <div class="req-res"><strong>Request</strong><pre>GET {{APP_URL}}/api/countries</pre></div>
+          <div class="req-res"><strong>Response</strong><pre>[
+  {
+    "countryCode": "usv",
+    "countryName": "United States virtual",
+    "count": 42,
+    "icon": "{{APP_URL}}/assets/country/us.png",
+    "operatorList": [
+      { "id": "any", "name": "Any operator", "icon": null },
+      { "id": "textnow", "name": "TextNow", "icon": "{{APP_URL}}/assets/operator/textnow.png" }
+    ]
+  }
+]</pre></div>
+        </div>
+        <div class="endpoint-block">
+          <h4>GET /api/operators</h4>
+          <div class="req-res"><strong>Request</strong><pre>GET {{APP_URL}}/api/operators</pre></div>
+          <div class="req-res"><strong>Response</strong><pre>{
+  "countries": [
+    {
+      "countryCode": "usv",
+      "countryName": "United States virtual",
+      "count": 42,
+      "icon": "{{APP_URL}}/assets/country/us.png",
+      "operators": [
+        { "id": "any", "name": "Any operator", "icon": null },
+        { "id": "textnow", "name": "TextNow", "icon": "{{APP_URL}}/assets/operator/textnow.png" }
+      ]
+    }
+  ]
+}</pre></div>
+        </div>
+        <div class="endpoint-block">
+          <h4>GET /api/price/:service</h4>
+          <div class="req-res"><strong>Request</strong><pre>GET {{APP_URL}}/api/price/wa?country=usv&amp;operator=</pre></div>
+          <div class="req-res"><strong>Response</strong><pre>{
+  "count": 42,
+  "priceRub": 12.5,
+  "priceUsd": 0.15
+}</pre></div>
+        </div>
+
+        <h3>Authenticated (send X-API-Key or Authorization: Bearer)</h3>
+        <div class="endpoint-block">
+          <h4>GET /api/v1/balance</h4>
+          <div class="req-res"><strong>Request</strong><pre>GET {{APP_URL}}/api/v1/balance
+X-API-Key: YOUR_KEY</pre></div>
+          <div class="req-res"><strong>Response</strong><pre>{ "balance": 10.50 }</pre></div>
+        </div>
+        <div class="endpoint-block">
+          <h4>POST /api/v1/get-number</h4>
+          <div class="req-res"><strong>Request</strong><pre>POST {{APP_URL}}/api/v1/get-number
+Content-Type: application/json
+X-API-Key: YOUR_KEY
+
+{"service":"wa","country":"usv","operator":"","rent":false}</pre></div>
+          <div class="req-res"><strong>Response</strong><pre>{
+  "activation": {
+    "id": 123,
+    "phone": "+1234567890",
+    "service": "wa",
+    "service_name": "WhatsApp",
+    "price_usd": 0.15,
+    "status": "waiting",
+    "created_at": "2025-03-07T12:00:00.000Z"
+  }
+}</pre></div>
+        </div>
+        <div class="endpoint-block">
+          <h4>GET /api/v1/activations</h4>
+          <div class="req-res"><strong>Request</strong><pre>GET {{APP_URL}}/api/v1/activations
+X-API-Key: YOUR_KEY</pre></div>
+          <div class="req-res"><strong>Response</strong><pre>{
+  "activations": [
+    {
+      "id": 123,
+      "service": "wa",
+      "service_name": "WhatsApp",
+      "country": "usv",
+      "phone": "+1234567890",
+      "id_num": "abc123",
+      "price_usd": 0.15,
+      "status": "waiting",
+      "sms_code": null,
+      "is_rent": 0,
+      "created_at": "2025-03-07T12:00:00.000Z"
+    }
+  ]
+}</pre></div>
+        </div>
+        <div class="endpoint-block">
+          <h4>GET /api/v1/activation/:id/status</h4>
+          <div class="req-res"><strong>Request</strong><pre>GET {{APP_URL}}/api/v1/activation/123/status
+X-API-Key: YOUR_KEY</pre></div>
+          <div class="req-res"><strong>Response (waiting)</strong><pre>{ "status": "waiting", "sms_code": null }</pre></div>
+          <div class="req-res"><strong>Response (SMS received)</strong><pre>{
+  "status": "got_sms",
+  "sms_code": "123456",
+  "sms_codes": ["123456"]
+}</pre></div>
+        </div>
+        <div class="endpoint-block">
+          <h4>POST /api/v1/activation/:id/status</h4>
+          <div class="req-res"><strong>Request</strong><pre>POST {{APP_URL}}/api/v1/activation/123/status
+Content-Type: application/json
+X-API-Key: YOUR_KEY
+
+{"action":"send"}</pre></div>
+          <div class="req-res"><strong>Response</strong><pre>{ "ok": true, "data": {} }</pre></div>
+        </div>
+        <div class="endpoint-block">
+          <h4>POST /api/v1/activation/:id/cancel</h4>
+          <div class="req-res"><strong>Request</strong><pre>POST {{APP_URL}}/api/v1/activation/123/cancel
+X-API-Key: YOUR_KEY</pre></div>
+          <div class="req-res"><strong>Response</strong><pre>{ "ok": true, "message": "Activation cancelled and refunded." }</pre></div>
+        </div>
+        <div class="endpoint-block">
+          <h4>POST /api/v1/activation/:id/banned</h4>
+          <div class="req-res"><strong>Request</strong><pre>POST {{APP_URL}}/api/v1/activation/123/banned
+X-API-Key: YOUR_KEY</pre></div>
+          <div class="req-res"><strong>Response</strong><pre>{ "ok": true, "message": "Number reported as banned; refunded." }</pre></div>
+        </div>
+        <div class="endpoint-block">
+          <h4>POST /api/v1/activation/:id/reuse</h4>
+          <div class="req-res"><strong>Request</strong><pre>POST {{APP_URL}}/api/v1/activation/123/reuse
+X-API-Key: YOUR_KEY</pre></div>
+          <div class="req-res"><strong>Response</strong><pre>{ "ok": true, "message": "Number reused; waiting for SMS again." }</pre></div>
+        </div>
+
+        <h2>7. Example flow: get number and wait for SMS</h2>
+        <h3>Step 1 — Order a number</h3>
+        <pre>POST {{APP_URL}}/api/v1/get-number
+Content-Type: application/json
+X-API-Key: YOUR_KEY
+
+{
+  "service": "wa",
+  "country": "usv",
+  "operator": "",
+  "rent": false
+}</pre>
+        <p>Response:</p>
+        <pre>{
+  "activation": {
+    "id": 123,
+    "phone": "+1234567890",
+    "service": "wa",
+    "service_name": "WhatsApp",
+    "price_usd": 0.15,
+    "status": "waiting",
+    "created_at": "2025-03-07T12:00:00.000Z"
+  }
+}</pre>
+
+        <h3>Step 2 — Poll for SMS</h3>
+        <pre>GET {{APP_URL}}/api/v1/activation/123/status
+X-API-Key: YOUR_KEY</pre>
+        <p>When SMS is received:</p>
+        <pre>{
+  "status": "got_sms",
+  "sms_code": "123456",
+  "sms_codes": ["123456"]
+}</pre>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/layout.js"></script>
+  <script src="/js/toast.js"></script>
+  <script src="/js/app.js"></script>
+  <script src="/js/sidebar.js"></script>
+  <script>
+    (function() {
+      const apiKeysLoginHint = document.getElementById('apiKeysLoginHint');
+      const apiKeysBox = document.getElementById('apiKeysBox');
+      const apiKeysList = document.getElementById('apiKeysList');
+      const apiKeyName = document.getElementById('apiKeyName');
+      const apiKeyCreate = document.getElementById('apiKeyCreate');
+      const apiKeyReveal = document.getElementById('apiKeyReveal');
+      const apiKeyValue = document.getElementById('apiKeyValue');
+      const apiKeyCopy = document.getElementById('apiKeyCopy');
+
+      async function loadMe() {
+        const r = await fetch('/api/auth/me');
+        if (!r.ok) return null;
+        const d = await r.json();
+        return d.user || null;
+      }
+
+      async function loadApiKeys() {
+        const r = await fetch('/api/auth/api-keys');
+        if (!r.ok) return [];
+        const d = await r.json();
+        return d.apiKeys || [];
+      }
+
+      async function renderKeys() {
+        const keys = await loadApiKeys();
+        if (keys.length === 0) {
+          apiKeysList.innerHTML = '<p class="api-key-created">No API keys yet. Generate one below.</p>';
+          return;
+        }
+        apiKeysList.innerHTML = keys.map(function(k) {
+          return '<div class="api-key-row">' +
+            '<span class="api-key-prefix">' + (k.prefix || '') + '</span>' +
+            '<span class="api-key-created">' + (k.createdAt ? new Date(k.createdAt).toLocaleString() : '') + '</span>' +
+            (k.name ? '<span>' + escapeHtml(k.name) + '</span>' : '') +
+            '<button type="button" class="btn btn-sm btn-outline" data-id="' + k.id + '" data-revoke>Revoke</button>' +
+            '</div>';
+        }).join('');
+        apiKeysList.querySelectorAll('[data-revoke]').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            const id = btn.dataset.id;
+            if (!confirm('Revoke this API key? It will stop working immediately.')) return;
+            fetch('/api/auth/api-keys/' + id, { method: 'DELETE' })
+              .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, d }; }); })
+              .then(function({ ok, d }) {
+                if (ok) { renderKeys(); if (window.toast) window.toast('API key revoked', 'success'); }
+                else if (window.toast) window.toast(d.error || 'Failed', 'error');
+              });
+          });
+        });
+      }
+
+      function escapeHtml(s) {
+        if (!s) return '';
+        const div = document.createElement('div');
+        div.textContent = s;
+        return div.innerHTML;
+      }
+
+      apiKeyCreate.addEventListener('click', function() {
+        const name = (apiKeyName.value || '').trim() || null;
+        apiKeyCreate.disabled = true;
+        fetch('/api/auth/api-keys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: name || '' })
+        })
+          .then(function(r) { return r.json(); })
+          .then(function(d) {
+            apiKeyCreate.disabled = false;
+            if (d.apiKey) {
+              apiKeyValue.textContent = d.apiKey;
+              apiKeyReveal.style.display = 'block';
+              renderKeys();
+              if (window.toast) window.toast('Copy your API key now — it won\'t be shown again.', 'success');
+            } else if (d.error && window.toast) window.toast(d.error, 'error');
+          })
+          .catch(function() { apiKeyCreate.disabled = false; });
+      });
+
+      apiKeyCopy.addEventListener('click', function() {
+        const val = apiKeyValue.textContent;
+        if (!val) return;
+        navigator.clipboard.writeText(val).then(function() {
+          if (window.toast) window.toast('Copied to clipboard', 'success');
+        }).catch(function() {
+          if (window.toast) window.toast('Copy failed', 'error');
+        });
+      });
+
+      (async function() {
+        const user = await loadMe();
+        if (user) {
+          apiKeysLoginHint.style.display = 'none';
+          apiKeysBox.style.display = 'block';
+          await renderKeys();
+        }
+      })();
+    })();
+  </script>
+</body>
+</html>

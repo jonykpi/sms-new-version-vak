@@ -8,6 +8,8 @@
     "start:single": "node server/index.js",
     "dev": "node --watch server/index.js",
     "init-db": "node server/init-db.js",
+    "reset-db": "node scripts/reset-db.js",
+    "migrate:smsportal": "node scripts/migrate-from-smsportal.js",
     "download-country-icons": "node scripts/download-country-icons.js",
     "download-service-icons": "node scripts/download-service-icons.js",
     "maintenance:on": "node scripts/set-maintenance.js on",
