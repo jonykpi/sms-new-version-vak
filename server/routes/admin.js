@@ -80,7 +80,7 @@ router.get('/users', requireAdmin, async (req, res) => {
   const [countRow] = await db.query('SELECT COUNT(*) as n FROM users' + where, params);
   const total = countRow?.n || 0;
   const rows = await db.query(
-    'SELECT id, email, balance, is_admin, suspended, admin_note, created_at FROM users' + where + ' ORDER BY id LIMIT ' + limit + ' OFFSET ' + offset,
+    'SELECT id, email, balance, is_admin, suspended, admin_note, created_at FROM users' + where + ' ORDER BY id DESC LIMIT ' + limit + ' OFFSET ' + offset,
     params
   );
   res.json({ users: rows, total, page, limit, totalPages: Math.ceil(total / limit) });
