@@ -21,7 +21,8 @@
     <div id="notAdmin" class="alert alert-danger" style="display:none;">Access denied. Admin only.</div>
     <div id="adminContent" style="display:none;">
       <div class="admin-layout">
-        <nav class="admin-nav">
+        <nav class="admin-nav" id="adminNav">
+          <button type="button" class="admin-nav-toggle" id="adminNavToggle" aria-label="Toggle menu">☰</button>
           <ul>
             <li><a href="#dashboard" data-page="dashboard">Dashboard</a></li>
             <li><a href="#deposits" data-page="deposits">Deposits</a></li>
@@ -162,6 +163,14 @@
       });
     });
     window.addEventListener('hashchange', () => showPage(getPage()));
+
+    (function() {
+      const nav = document.getElementById('adminNav');
+      const toggle = document.getElementById('adminNavToggle');
+      if (nav && toggle) {
+        toggle.addEventListener('click', function() { nav.classList.toggle('is-open'); });
+      }
+    })();
 
     function renderPagination(containerId, page, totalPages, onPage) {
       const el = document.getElementById(containerId);
