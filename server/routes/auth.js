@@ -41,7 +41,7 @@ router.post('/register', async (req, res) => {
       }
     }
     setSession(req, row);
-    res.json({ user: { id: row.id, email: row.email, balance: row.balance, isAdmin: !!row.is_admin, emailVerified: !!row.email_verified }, message: 'Check your email to verify your account.' });
+    res.json({ user: { id: row.id, email: row.email, balance: row.balance, isAdmin: !!row.is_admin, emailVerified: !!row.email_verified }, message: 'Check your email to verify your account. Please also check your spam folder.' });
   } catch (e) {
     if (e.code === 'ER_DUP_ENTRY') return res.status(400).json({ error: 'Email already registered' });
     res.status(500).json({ error: e.message });
@@ -99,7 +99,7 @@ router.post('/resend-verification', async (req, res) => {
   await db.execute('UPDATE users SET verification_token = ?, verification_token_expires = ? WHERE id = ?', [verificationToken, verificationExpires, row.id]);
   try {
     await sendVerificationEmail(row.email, row.name || 'there', verificationToken);
-    res.json({ ok: true, message: 'Verification email sent. Check your inbox.' });
+    res.json({ ok: true, message: 'Verification email sent. Check your inbox — and your spam folder if you don\'t see it.' });
   } catch (e) {
     res.status(502).json({ error: 'Failed to send email. Try again later.' });
   }
@@ -117,7 +117,7 @@ router.post('/forgot-password', async (req, res) => {
       await sendResetPasswordEmail(row.email, row.name || 'there', resetToken);
     } catch (_) {}
   }
-  res.json({ ok: true, message: 'If that email exists, we sent a reset link.' });
+  res.json({ ok: true, message: 'If that email exists, we sent a reset link. Please also check your spam folder.' });
 });
 
 router.post('/reset-password', async (req, res) => {
