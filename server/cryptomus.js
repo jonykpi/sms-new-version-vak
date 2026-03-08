@@ -7,6 +7,9 @@ const crypto = require('crypto');
 
 const API_BASE = 'https://api.cryptomus.com/v1';
 const API_BASE_V2 = 'https://api.cryptomus.com/v2/user-api';
+const RATE_CACHE_TTL_MS = Math.max(1000, (Number(process.env.CRYPTOMUS_RATE_CACHE_SECONDS) || 600) * 1000);
+const conversionCache = new Map();
+let lastConnectivityError = null;
 
 function getConfig() {
   const apiKey = process.env.CRYPTOMUS_API_KEY;
@@ -35,6 +38,16 @@ async function logOutboundIpHint(prefix = '[Cryptomus]') {
       console.error(`${prefix} Your server outbound IP is:`, ipData.ip, '— add this IP to Cryptomus merchant IP whitelist.');
     }
   } catch (_) {}
+}
+
+async function getOutboundIp() {
+  try {
+    const ipRes = await fetch('https://api.ipify.org?format=json');
+    const ipData = await ipRes.json();
+    return ipData?.ip || null;
+  } catch {
+    return null;
+  }
 }
 
 async function request(method, path, body = {}) {
@@ -131,6 +144,22 @@ async function calculate(opts) {
   return requestV2('POST', '/convert/calculate', body);
 }
 
+async function calculateWithRetry(opts, attempts = 3) {
+  let lastError;
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      return await calculate(opts);
+    } catch (e) {
+      lastError = e;
+      if (i < attempts - 1) {
+        const delayMs = 250 * (i + 1);
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+  throw lastError || new Error('Calculate failed');
+}
+
 
 /**
  * Convert USD to crypto using exchange rate formula:
@@ -142,43 +171,78 @@ async function convertUsdToCryptoByRate(currency, usdAmount) {
   if (!cur) throw new Error('Currency is required');
   if (!Number.isFinite(amount) || amount < 0) throw new Error('Invalid USD amount');
 
+  // Use authenticated API only; public exchange-rate endpoint is often blocked by Cloudflare.
   try {
-    const url = `${API_BASE}/exchange-rate/${encodeURIComponent(cur)}/list`;
-    const res = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } });
-    if (!res.ok) {
-      if (res.status === 403) await logOutboundIpHint('[Cryptomus rate]');
-      throw new Error(`Exchange rate API error (${res.status})`);
-    }
-
-    const data = await res.json();
-    const list = Array.isArray(data?.result) ? data.result : [];
-    const usdRow = list.find((row) => String(row?.to || '').toUpperCase() === 'USD');
-    const course = Number(usdRow?.course);
-
-    if (!Number.isFinite(course) || course <= 0) {
-      throw new Error(`USD exchange rate not found for ${cur}`);
-    }
-
-    return {
-      currency: cur,
-      course,
-      amount: amount / course,
-    };
-  } catch (rateError) {
-    // Fallback for blocked/unstable public exchange-rate endpoint:
-    // use authenticated calculate endpoint and derive course from 1 USD.
-    const oneUsd = await calculate({ to: cur, from_amount: '1' });
+    const oneUsd = await calculateWithRetry({ to: cur, from_amount: '1' }, 3);
     const oneUsdInCrypto = Number(oneUsd?.to ?? oneUsd?.to_amount ?? oneUsd?.amount);
     if (!Number.isFinite(oneUsdInCrypto) || oneUsdInCrypto <= 0) {
-      throw new Error(`Failed to convert USD to ${cur}: ${rateError.message}`);
+      throw new Error(`Failed to convert USD to ${cur}`);
     }
     const course = 1 / oneUsdInCrypto;
+    const cached = { course, oneUsdInCrypto, updatedAt: Date.now() };
+    conversionCache.set(cur, cached);
+    lastConnectivityError = null;
     return {
       currency: cur,
       course,
       amount: amount * oneUsdInCrypto,
+      cached: false,
+    };
+  } catch (e) {
+    lastConnectivityError = {
+      at: new Date().toISOString(),
+      currency: cur,
+      message: e?.message || 'Unknown error',
+    };
+    const cached = conversionCache.get(cur);
+    if (cached && (Date.now() - cached.updatedAt) <= RATE_CACHE_TTL_MS) {
+      return {
+        currency: cur,
+        course: cached.course,
+        amount: amount * cached.oneUsdInCrypto,
+        cached: true,
+      };
+    }
+    throw e;
+  }
+}
+
+async function getDiagnostics(opts = {}) {
+  const probe = opts.probe === true;
+  const outboundIp = await getOutboundIp();
+  const diagnostics = {
+    apiBase: API_BASE,
+    apiBaseV2: API_BASE_V2,
+    hasApiKey: Boolean(process.env.CRYPTOMUS_API_KEY),
+    hasMerchantId: Boolean(process.env.CRYPTOMUS_MERCHANT_ID),
+    outboundIp,
+    cacheTtlSeconds: Math.round(RATE_CACHE_TTL_MS / 1000),
+    cachedCurrencies: Array.from(conversionCache.keys()),
+    lastConnectivityError,
+    now: new Date().toISOString(),
+  };
+
+  if (!probe) return diagnostics;
+
+  try {
+    const test = await convertUsdToCryptoByRate('USDT', 1);
+    diagnostics.probe = {
+      ok: true,
+      currency: test.currency,
+      amount: test.amount,
+      course: test.course,
+      cached: test.cached === true,
+      at: new Date().toISOString(),
+    };
+  } catch (e) {
+    diagnostics.probe = {
+      ok: false,
+      error: e?.message || 'Probe failed',
+      at: new Date().toISOString(),
     };
   }
+
+  return diagnostics;
 }
 
 /**
@@ -195,4 +259,4 @@ async function createWallet(opts) {
   });
 }
 
-module.exports = { createWallet, calculate, convertUsdToCryptoByRate, signBody };
+module.exports = { createWallet, calculate, convertUsdToCryptoByRate, getDiagnostics, signBody };

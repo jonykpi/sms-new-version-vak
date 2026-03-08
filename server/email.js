@@ -3,7 +3,7 @@ const nodemailer = require('nodemailer');
 function getTransporter() {
   const encryption = (process.env.MAIL_ENCRYPTION || '').toLowerCase();
   const port = parseInt(process.env.MAIL_PORT || '2525', 10);
-  const secure = encryption === 'ssl' || port === 465;
+  const secure = false;
   const requireTLS = (encryption === 'tls' || encryption === 'starttls') && !secure;
   return nodemailer.createTransport({
     host: process.env.MAIL_HOST || 'sandbox.smtp.mailtrap.io',
@@ -78,7 +78,7 @@ async function sendDepositSuccessEmail(to, name, amount) {
     await transporter.sendMail({
       from: `"${getMailFromName()}" <${process.env.MAIL_FROM_ADDRESS || 'noreply@example.com'}>`,
       to,
-      subject: getSubject('MAIL_SUBJECT_DEPOSIT_SUCCESS', 'Deposit successful — ' + siteName()),
+      subject: 'Deposit successful — ' + (process.env.WEBSITE_NAME || 'text2fa.com'),
       html: `
       <p>Hi ${name || 'there'},</p>
       <p>Your deposit of <strong>$${Number(amount).toFixed(2)}</strong> has been credited to your balance.</p>
@@ -100,7 +100,7 @@ async function sendResetPasswordEmail(to, name, token) {
     await transporter.sendMail({
       from: `"${getMailFromName()}" <${process.env.MAIL_FROM_ADDRESS || 'noreply@example.com'}>`,
       to,
-      subject: getSubject('MAIL_SUBJECT_RESET_PASSWORD', 'Reset your password — ' + siteName()),
+      subject: 'Reset your password — ' + (process.env.WEBSITE_NAME || 'text2fa.com'),
       html: `
       <p>Hi ${name || 'there'},</p>
       <p>You requested a password reset. Click the link below to set a new password:</p>

@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const cryptomus = require('../cryptomus');
-const { requireAuth, requireVerified } = require('../middleware/auth');
+const { requireAuth, requireVerified, requireAdmin } = require('../middleware/auth');
 const { sendDepositSuccessEmail } = require('../email');
 
 const router = express.Router();
@@ -21,6 +21,16 @@ const CRYPTO_OPTIONS = [
 
 router.get('/options', (req, res) => {
   res.json({ options: CRYPTO_OPTIONS });
+});
+
+router.get('/diagnostics', requireAdmin, async (req, res) => {
+  try {
+    const probe = req.query.probe === '1';
+    const data = await cryptomus.getDiagnostics({ probe });
+    return res.json(data);
+  } catch (e) {
+    return res.status(500).json({ error: e.message || 'Failed to load diagnostics' });
+  }
 });
 
 /** Convert USD to crypto using formula: amount_in_crypto = usd_amount / course */
@@ -58,7 +68,7 @@ router.get('/history', requireAuth, async (req, res) => {
 
 router.post('/create', requireAuth, requireVerified, async (req, res) => {
   try {
-    const { amount_usd, amount_in_crypto, to_currency, network } = req.body;
+    const { amount_usd, to_currency, network } = req.body;
     const amt = parseFloat(amount_usd);
     if (!Number.isFinite(amt) || amt < 1 || amt > 10000) {
       return res.status(400).json({ error: 'Amount must be between $1 and $10,000' });
@@ -66,6 +76,14 @@ router.post('/create', requireAuth, requireVerified, async (req, res) => {
     if (!to_currency || !network) return res.status(400).json({ error: 'Invalid currency or network' });
     const opt = CRYPTO_OPTIONS.find(o => o.currency === to_currency && o.network === network);
     if (!opt) return res.status(400).json({ error: 'Currency or network not allowed' });
+
+    // Security/consistency: always calculate crypto amount server-side.
+    let conversion = null;
+    try {
+      conversion = await cryptomus.convertUsdToCryptoByRate(to_currency, amt);
+    } catch (e) {
+      console.error('Server-side conversion warning:', e.message);
+    }
 
     const urlCallback = `${getBaseUrl()}/api/deposit/webhook`;
 
@@ -105,6 +123,9 @@ router.post('/create', requireAuth, requireVerified, async (req, res) => {
       currency: walletCreate.currency || to_currency,
       url: walletCreate.url,
       amount_usd: amt,
+      amount_in_crypto: conversion?.amount ?? null,
+      course: conversion?.course ?? null,
+      rate_cached: conversion?.cached === true,
     });
   } catch (e) {
     console.error('Deposit create error:', e);

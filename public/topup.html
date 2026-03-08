@@ -297,8 +297,10 @@
         }
         stepForm.style.display = 'none';
         stepPayment.style.display = 'block';
+        const serverCrypto = d.amount_in_crypto != null ? Number(d.amount_in_crypto) : null;
+        const finalCrypto = (serverCrypto != null && !Number.isNaN(serverCrypto)) ? serverCrypto : amount_in_crypto;
         paymentBalanceAmt.textContent = '$' + (d.amount_usd ?? amt).toFixed(2);
-        paymentCryptoAmt.textContent = amount_in_crypto != null ? ('~' + formatCryptoAmount(amount_in_crypto, to_currency) + ' ' + to_currency) : (to_currency + ' ' + networkLabel);
+        paymentCryptoAmt.textContent = finalCrypto != null ? ('~' + formatCryptoAmount(finalCrypto, to_currency) + ' ' + to_currency) : (to_currency + ' ' + networkLabel);
         paymentNetworkName.textContent = opt?.label || networkLabel || '—';
         depositAddress.textContent = d.address || '—';
         networkNameEl.textContent = opt?.label || to_currency || network || '—';
