@@ -94,6 +94,15 @@ app.get('/topup', (req, res) => sendHtmlWithSiteName(res, path.join(publicDir, '
 app.get('/api-docs', (req, res) => sendHtmlWithSiteName(res, path.join(publicDir, 'api-docs.html')));
 app.get('/admin', (req, res) => sendHtmlWithSiteName(res, path.join(publicDir, 'admin', 'index.html')));
 
+/* 404 — page not found */
+app.use((req, res) => {
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  res.status(404);
+  sendHtmlWithSiteName(res, path.join(publicDir, '404.html'));
+});
+
 function start() {
   app.listen(PORT, () => {
     console.log(`${WEBSITE_NAME} running at http://localhost:${PORT}`);
